@@ -3,6 +3,8 @@ const bursaForm = document.getElementById('quickAddForm');
 const bursaInput = document.getElementById('quickAddressInput');
 const bursaButton = document.getElementById('quickAddBtn');
 
+const LEARNED_PLACES_KEY = 'kargo-learned-bursa-places-v1';
+
 let bursaResults = [];
 let latestQuery = '';
 let poiIndex = [];
@@ -103,6 +105,66 @@ function scoreLocal(item, query) {
   return 99;
 }
 
+function indexItem(row, provider = 'local') {
+  const lat = Number(row.lat);
+  const lng = Number(row.lng);
+  return {
+    provider: row.provider || provider,
+    name: row.n || row.name || 'Bursa durağı',
+    address: row.a || row.address || 'Bursa',
+    lat: Number.isFinite(lat) ? lat : null,
+    lng: Number.isFinite(lng) ? lng : null,
+    _name: normalizeText(row.n || row.name || ''),
+    _address: normalizeText(row.a || row.address || ''),
+  };
+}
+
+function loadLearnedPlaces() {
+  try {
+    const rows = JSON.parse(localStorage.getItem(LEARNED_PLACES_KEY) || '[]');
+    return Array.isArray(rows) ? rows.map((row) => indexItem(row, 'learned')) : [];
+  } catch {
+    localStorage.removeItem(LEARNED_PLACES_KEY);
+    return [];
+  }
+}
+
+function mergeIndexRows(...groups) {
+  const merged = [];
+  const seen = new Set();
+  groups.flat().forEach((item) => {
+    const key = `${item._name}|${item._address}`;
+    if (!item._name || seen.has(key)) return;
+    seen.add(key);
+    merged.push(item);
+  });
+  return merged;
+}
+
+function rememberPlace(item) {
+  if (!item?.name || !Number.isFinite(Number(item.lat)) || !Number.isFinite(Number(item.lng))) return;
+  const saved = loadLearnedPlaces();
+  const candidate = indexItem({
+    provider: 'learned',
+    name: item.name,
+    address: item.address,
+    lat: Number(item.lat),
+    lng: Number(item.lng),
+  }, 'learned');
+
+  const key = `${candidate._name}|${candidate._address}`;
+  const next = [candidate, ...saved.filter((row) => `${row._name}|${row._address}` !== key)].slice(0, 250);
+
+  localStorage.setItem(LEARNED_PLACES_KEY, JSON.stringify(next.map((row) => ({
+    name: row.name,
+    address: row.address,
+    lat: row.lat,
+    lng: row.lng,
+  }))));
+
+  poiIndex = mergeIndexRows(next, poiIndex);
+}
+
 function searchLocalBusinesses(query) {
   if (!poiReady || !poiIndex.length) return [];
   const q = normalizeText(query.trim());
@@ -111,33 +173,36 @@ function searchLocalBusinesses(query) {
   return poiIndex
     .map((item) => ({ item, score: scoreLocal(item, q) }))
     .filter((entry) => entry.score < 99)
-    .sort((a, b) => a.score - b.score || a.item.name.length - b.item.name.length || a.item.name.localeCompare(b.item.name, 'tr'))
-    .slice(0, 6)
+    .sort((a, b) => {
+      if (a.item.provider === 'learned' && b.item.provider !== 'learned') return -1;
+      if (b.item.provider === 'learned' && a.item.provider !== 'learned') return 1;
+      return entryCompare(a, b);
+    })
+    .slice(0, 8)
     .map((entry) => entry.item);
 }
 
-const poiLoadPromise = fetch('./bursa-poi.json?v=16', { cache: 'force-cache' })
+function entryCompare(a, b) {
+  return a.score - b.score
+    || a.item.name.length - b.item.name.length
+    || a.item.name.localeCompare(b.item.name, 'tr');
+}
+
+const poiLoadPromise = fetch('./bursa-poi.json?v=17', { cache: 'force-cache' })
   .then((response) => {
     if (!response.ok) throw new Error('poi-index');
     return response.json();
   })
   .then((rows) => {
-    poiIndex = (Array.isArray(rows) ? rows : []).map((row) => ({
-      provider: 'local',
-      name: row.n || 'Bursa durağı',
-      address: row.a || 'Bursa',
-      lat: Number(row.lat),
-      lng: Number(row.lng),
-      _name: normalizeText(row.n || ''),
-      _address: normalizeText(row.a || ''),
-    })).filter((row) => Number.isFinite(row.lat) && Number.isFinite(row.lng));
+    const builtIndex = (Array.isArray(rows) ? rows : []).map((row) => indexItem(row, 'local'));
+    poiIndex = mergeIndexRows(loadLearnedPlaces(), builtIndex);
     poiReady = true;
     return poiIndex;
   })
   .catch(() => {
     poiFailed = true;
     poiReady = true;
-    poiIndex = [];
+    poiIndex = loadLearnedPlaces();
     return poiIndex;
   });
 
@@ -166,7 +231,7 @@ async function findWithNominatim(query) {
     const rows = await response.json();
     return rows
       .filter((item) => normalizeText(item.display_name || '').includes('bursa'))
-      .slice(0, 6)
+      .slice(0, 8)
       .map((item) => ({
         provider: 'nominatim',
         name: item.namedetails?.name || item.name || item.display_name?.split(',')[0] || 'Bursa durağı',
@@ -177,6 +242,21 @@ async function findWithNominatim(query) {
   } finally {
     clearTimeout(timeout);
   }
+}
+
+async function resolvePlacePoint(item) {
+  if (Number.isFinite(Number(item.lat)) && Number.isFinite(Number(item.lng))) return item;
+
+  let rows = await findWithNominatim(item.address || item.name);
+  if (!rows.length && item.name) rows = await findWithNominatim(item.name);
+  if (!rows.length) throw new Error('Konum bulunamadı');
+
+  return {
+    ...item,
+    address: rows[0].address || item.address,
+    lat: rows[0].lat,
+    lng: rows[0].lng,
+  };
 }
 
 async function runInstantLocalSearch(query) {
@@ -199,11 +279,11 @@ async function runInstantLocalSearch(query) {
 
   bursaResults = rows;
   if (rows.length) {
-    renderBursaResults(rows, 'yerel Bursa işletme listesi');
+    renderBursaResults(rows, 'hızlı Bursa firma listesi');
   } else if (poiFailed) {
     showBursaMessage('Firma listesi yüklenemedi.', 'Klavyedeki Ara tuşuyla firma veya adresi yine arayabilirsin.');
   } else {
-    showBursaMessage('Yerel listede bulamadım.', 'Klavyedeki Ara tuşuna bas; adres/firma aramasını genişletelim.');
+    showBursaMessage('Yerel listede bulamadım.', 'Klavyedeki Ara tuşuna bas; firma/adres aramasını genişletelim.');
   }
 }
 
@@ -221,17 +301,17 @@ async function runSubmitSearch(query) {
   const looksLikeAddress = /\d|,|\bmah\b|\bmahalle\b|\bcad\b|\bcadde\b|\bsok\b|\bsokak\b/i.test(trimmed);
   if (localRows.length && !looksLikeAddress) {
     bursaResults = localRows;
-    renderBursaResults(localRows, 'yerel Bursa işletme listesi');
+    renderBursaResults(localRows, 'hızlı Bursa firma listesi');
     return;
   }
 
-  showBursaMessage('Bursa’da aranıyor…', 'Adres veya daha geniş firma sonucu getiriliyor.');
+  showBursaMessage('Bursa’da aranıyor…', 'Firma veya adres sonucu getiriliyor.');
 
   try {
     const rows = await findWithNominatim(trimmed);
     if (trimmed !== latestQuery) return;
     bursaResults = rows;
-    renderBursaResults(rows, 'OpenStreetMap adres ve firma');
+    renderBursaResults(rows, 'OpenStreetMap geniş arama');
   } catch (error) {
     if (trimmed === latestQuery) {
       showBursaMessage('Arama yapılamadı.', error?.name === 'AbortError' ? 'Arama zaman aşımına uğradı. Tekrar dene.' : (error?.message || 'Tekrar dene.'));
@@ -279,19 +359,25 @@ if (bursaForm && bursaInput && bursaResultsBox) {
     if (!item) return;
 
     button.disabled = true;
+    const oldText = button.style.opacity;
+    button.style.opacity = '0.6';
+
     try {
+      const resolved = await resolvePlacePoint(item);
       await addStop({
-        address: item.address,
-        recipient: item.name,
-        point: { lat: item.lat, lng: item.lng },
+        address: resolved.address,
+        recipient: resolved.name,
+        point: { lat: resolved.lat, lng: resolved.lng },
       });
+      rememberPlace(resolved);
       bursaInput.value = '';
       latestQuery = '';
       hideBursaResults();
-      showToast(`${item.name} eklendi.`);
+      showToast(`${resolved.name} eklendi.`);
     } catch {
       button.disabled = false;
-      showToast('Durak eklenemedi.');
+      button.style.opacity = oldText;
+      showToast('Firmanın konumu bulunamadı.');
     }
   });
 }
