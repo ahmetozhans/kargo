@@ -1,4 +1,4 @@
-const CACHE_NAME = 'kargo-shell-v15';
+const CACHE_NAME = 'kargo-shell-v16';
 const APP_SHELL = [
   './',
   './index.html',
