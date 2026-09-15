@@ -24,18 +24,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Build runtime config
-        env:
-          GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
-        run: |
-          node <<'NODE'
-          const fs = require('fs');
-          const config = {
-            googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY || ''
-          };
-          fs.writeFileSync('config.js', `window.KARGO_CONFIG = ${JSON.stringify(config)};\n`);
-          NODE
-
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
