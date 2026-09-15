@@ -15,6 +15,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
   <link rel="stylesheet" href="./styles.css" />
   <link rel="stylesheet" href="./fast.css" />
+  <link rel="stylesheet" href="./search.css" />
 </head>
 <body>
   <main class="app-shell">
@@ -29,10 +30,11 @@
     </header>
 
     <form class="quick-add" id="quickAddForm">
-      <input id="quickAddressInput" autocomplete="street-address" enterkeyhint="done" placeholder="Adresi yaz veya yapıştır…" aria-label="Hızlı adres ekle" />
+      <input id="quickAddressInput" autocomplete="off" enterkeyhint="search" placeholder="Firma adı veya Bursa adresi…" aria-label="Firma veya adres ara" />
       <button type="button" class="quick-paste" id="quickPasteBtn">Yapıştır</button>
-      <button type="submit" class="quick-submit" id="quickAddBtn">Ekle</button>
+      <button type="submit" class="quick-submit" id="quickAddBtn">Ara</button>
     </form>
+    <div id="searchResults" class="search-results" hidden aria-live="polite"></div>
 
     <section class="summary" aria-label="Rota özeti">
       <div class="metric">
@@ -84,7 +86,7 @@
       <div id="emptyState" class="empty-state">
         <div class="empty-icon">↗</div>
         <h3>İlk durağı ekle</h3>
-        <p>Üstteki kutuya adresi yapıştır. Detay gerekiyorsa + düğmesini kullan.</p>
+        <p>Firma adını yaz. Bulamazsan Bursa adresini ara.</p>
       </div>
 
       <ol id="stopList" class="stop-list" aria-live="polite"></ol>
@@ -114,8 +116,8 @@
       </div>
 
       <label>
-        <span>Adres *</span>
-        <textarea id="addressInput" rows="3" autocomplete="street-address" placeholder="Örn. Dobruca Mah. ... Bursa" required></textarea>
+        <span>Firma / adres *</span>
+        <textarea id="addressInput" rows="3" autocomplete="street-address" placeholder="Firma adı veya Bursa adresi" required></textarea>
       </label>
       <div class="form-grid">
         <label>
@@ -133,7 +135,7 @@
       </label>
 
       <div id="formMessage" class="form-message" role="status"></div>
-      <button class="primary-button full" id="saveStopBtn" type="submit">Adresi bul ve ekle</button>
+      <button class="primary-button full" id="saveStopBtn" type="submit">Bursa'da bul ve ekle</button>
       <button class="ghost-button full" id="useMapPointBtn" type="button">Haritadan nokta seç</button>
     </form>
   </dialog>
@@ -142,5 +144,6 @@
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="" defer></script>
   <script src="./app.js" defer></script>
+  <script src="./search.js" defer></script>
 </body>
 </html>
