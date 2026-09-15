@@ -1,12 +1,14 @@
-const CACHE_NAME = 'kargo-shell-v3';
+const CACHE_NAME = 'kargo-shell-v4';
 const APP_SHELL = [
   './',
   './index.html',
   './styles.css',
   './fast.css',
   './search.css',
+  './map-shell.css',
   './app.js',
   './search.js',
+  './map-shell.js',
   './manifest.webmanifest',
   './icon.svg'
 ];
