@@ -23,6 +23,19 @@ const el = {
   startRouteBtn: document.getElementById('startRouteBtn'),
   locateBtn: document.getElementById('locateBtn'),
   clearDoneBtn: document.getElementById('clearDoneBtn'),
+  quickAddForm: document.getElementById('quickAddForm'),
+  quickAddressInput: document.getElementById('quickAddressInput'),
+  quickPasteBtn: document.getElementById('quickPasteBtn'),
+  quickAddBtn: document.getElementById('quickAddBtn'),
+  nextStopCard: document.getElementById('nextStopCard'),
+  nextRecipient: document.getElementById('nextRecipient'),
+  nextAddress: document.getElementById('nextAddress'),
+  nextNote: document.getElementById('nextNote'),
+  nextBadge: document.getElementById('nextBadge'),
+  nextNavigateBtn: document.getElementById('nextNavigateBtn'),
+  nextDoneBtn: document.getElementById('nextDoneBtn'),
+  nextFailedBtn: document.getElementById('nextFailedBtn'),
+  nextCallBtn: document.getElementById('nextCallBtn'),
   stopDialog: document.getElementById('stopDialog'),
   stopForm: document.getElementById('stopForm'),
   closeDialogBtn: document.getElementById('closeDialogBtn'),
@@ -37,18 +50,21 @@ const el = {
 };
 
 const map = L.map('map', {
-  zoomControl: true,
+  zoomControl: false,
   attributionControl: true,
 }).setView(DEFAULT_CENTER, 12);
 
+L.control.zoom({ position: 'topright' }).addTo(map);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   maxZoom: 19,
   attribution: '&copy; OpenStreetMap',
 }).addTo(map);
 
 loadState();
+normalizeStopOrder();
 render();
 restoreMapBounds();
+tryAutoLocate();
 
 map.on('click', (event) => {
   if (!state.selectingMapPoint) return;
@@ -60,6 +76,43 @@ map.on('click', (event) => {
   el.mapStatus.textContent = 'Nokta seçildi. Adresi kaydetmek için formu tamamla.';
   openStopDialog();
   el.formMessage.textContent = 'Haritadaki seçili konum kullanılacak.';
+});
+
+el.quickAddForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const address = el.quickAddressInput.value.trim();
+  if (!address) {
+    el.quickAddressInput.focus();
+    return;
+  }
+  setQuickBusy(true);
+  try {
+    await addStop({ address });
+    el.quickAddressInput.value = '';
+    el.quickAddressInput.focus();
+    showToast('Durak eklendi.');
+  } catch (error) {
+    showToast(error.message || 'Adres bulunamadı.');
+  } finally {
+    setQuickBusy(false);
+  }
+});
+
+el.quickPasteBtn.addEventListener('click', async () => {
+  try {
+    if (!navigator.clipboard?.readText) throw new Error('clipboard');
+    const text = (await navigator.clipboard.readText()).trim();
+    if (!text) {
+      showToast('Panoda adres yok.');
+      return;
+    }
+    el.quickAddressInput.value = text.replace(/\s*\n+\s*/g, ', ');
+    el.quickAddressInput.focus();
+    el.quickAddressInput.select();
+  } catch {
+    el.quickAddressInput.focus();
+    showToast('Adresi kutuya yapıştır.');
+  }
 });
 
 el.addStopBtn.addEventListener('click', () => {
@@ -87,36 +140,16 @@ el.stopForm.addEventListener('submit', async (event) => {
 
   setFormBusy(true, 'Adres hazırlanıyor…');
   try {
-    let point = state.selectedMapPoint;
-    let resolvedAddress = address;
-
-    if (!point) {
-      el.formMessage.textContent = 'Adres haritada aranıyor…';
-      const geocoded = await geocodeAddress(address);
-      point = { lat: geocoded.lat, lng: geocoded.lng };
-      resolvedAddress = geocoded.displayName || address;
-    }
-
-    const stop = {
-      id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
-      address: resolvedAddress,
+    await addStop({
+      address,
       recipient: el.recipientInput.value.trim(),
       phone: el.phoneInput.value.trim(),
       note: el.noteInput.value.trim(),
-      lat: point.lat,
-      lng: point.lng,
-      status: 'pending',
-      createdAt: Date.now(),
-    };
-
-    state.stops.push(stop);
+      point: state.selectedMapPoint,
+    });
     state.selectedMapPoint = null;
-    saveState();
     closeStopDialog();
     resetStopForm();
-    render();
-    fitStops();
-    await drawRoute();
     showToast('Durak eklendi.');
   } catch (error) {
     el.formMessage.textContent = error.message || 'Adres bulunamadı.';
@@ -125,43 +158,93 @@ el.stopForm.addEventListener('submit', async (event) => {
   }
 });
 
-el.locateBtn.addEventListener('click', locateUser);
+el.locateBtn.addEventListener('click', () => locateUser(false));
 el.optimizeBtn.addEventListener('click', async () => {
   optimizeStops();
   saveState();
   render();
   await drawRoute();
   fitStops();
-  showToast('Duraklar en yakından uzağa sıralandı.');
+  haptic(18);
+  showToast('Rota sıralandı.');
 });
 
 el.startRouteBtn.addEventListener('click', () => {
-  const next = state.stops.find((stop) => stop.status === 'pending');
+  const next = getNextStop();
   if (!next) {
     showToast('Bekleyen teslimat kalmadı.');
     return;
   }
-  const destination = `${next.lat},${next.lng}`;
-  const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-  const url = isIOS
-    ? `https://maps.apple.com/?daddr=${encodeURIComponent(destination)}&dirflg=d`
-    : `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}&travelmode=driving`;
-  window.open(url, '_blank', 'noopener,noreferrer');
+  openNavigation(next);
+});
+
+el.nextNavigateBtn.addEventListener('click', () => {
+  const next = getNextStop();
+  if (next) openNavigation(next);
+});
+
+el.nextDoneBtn.addEventListener('click', () => {
+  const next = getNextStop();
+  if (next) setStopStatus(next.id, 'done');
+});
+
+el.nextFailedBtn.addEventListener('click', () => {
+  const next = getNextStop();
+  if (next) setStopStatus(next.id, 'failed');
+});
+
+el.nextCallBtn.addEventListener('click', () => {
+  const next = getNextStop();
+  if (!next?.phone) return;
+  window.location.href = `tel:${sanitizePhone(next.phone)}`;
 });
 
 el.clearDoneBtn.addEventListener('click', async () => {
   const before = state.stops.length;
   state.stops = state.stops.filter((stop) => stop.status === 'pending');
   if (before === state.stops.length) {
-    showToast('Temizlenecek tamamlanmış durak yok.');
+    showToast('Temizlenecek bitmiş durak yok.');
     return;
   }
   saveState();
   render();
   await drawRoute();
   fitStops();
-  showToast('Tamamlanan duraklar temizlendi.');
+  showToast('Biten duraklar temizlendi.');
 });
+
+async function addStop({ address, recipient = '', phone = '', note = '', point = null }) {
+  let resolvedPoint = point;
+  let resolvedAddress = address;
+
+  if (!resolvedPoint) {
+    const geocoded = await geocodeAddress(address);
+    resolvedPoint = { lat: geocoded.lat, lng: geocoded.lng };
+    resolvedAddress = geocoded.displayName || address;
+  }
+
+  const stop = {
+    id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
+    address: resolvedAddress,
+    recipient,
+    phone,
+    note,
+    lat: resolvedPoint.lat,
+    lng: resolvedPoint.lng,
+    status: 'pending',
+    createdAt: Date.now(),
+  };
+
+  const firstFinished = state.stops.findIndex((item) => item.status !== 'pending');
+  if (firstFinished === -1) state.stops.push(stop);
+  else state.stops.splice(firstFinished, 0, stop);
+
+  saveState();
+  render();
+  fitStops();
+  drawRoute();
+  return stop;
+}
 
 async function geocodeAddress(query) {
   const params = new URLSearchParams({
@@ -176,7 +259,7 @@ async function geocodeAddress(query) {
   });
   if (!response.ok) throw new Error('Adres servisine ulaşılamadı.');
   const results = await response.json();
-  if (!results.length) throw new Error('Bu adresi bulamadım. İlçe ve şehir ekleyip tekrar dene.');
+  if (!results.length) throw new Error('Adres bulunamadı. İlçe veya şehir ekleyip tekrar dene.');
   return {
     lat: Number(results[0].lat),
     lng: Number(results[0].lon),
@@ -184,26 +267,38 @@ async function geocodeAddress(query) {
   };
 }
 
-function locateUser() {
+async function tryAutoLocate() {
+  if (!navigator.permissions?.query) return;
+  try {
+    const permission = await navigator.permissions.query({ name: 'geolocation' });
+    if (permission.state === 'granted') locateUser(true);
+  } catch {
+    // Safari bazı sürümlerde geolocation permission query desteklemiyor.
+  }
+}
+
+function locateUser(silent = false) {
   if (!navigator.geolocation) {
-    showToast('Bu cihaz konum özelliğini desteklemiyor.');
+    if (!silent) showToast('Bu cihaz konum özelliğini desteklemiyor.');
     return;
   }
-  el.mapStatus.textContent = 'Konum alınıyor…';
+  if (!silent) el.mapStatus.textContent = 'Konum alınıyor…';
   navigator.geolocation.getCurrentPosition(
     async ({ coords }) => {
       state.userLocation = { lat: coords.latitude, lng: coords.longitude };
       renderUserMarker();
-      map.setView([coords.latitude, coords.longitude], 14);
+      if (!silent) map.setView([coords.latitude, coords.longitude], 14);
       el.mapStatus.textContent = 'Başlangıç konumun hazır.';
       await drawRoute();
-      showToast('Konum güncellendi.');
+      if (!silent) showToast('Konum güncellendi.');
     },
     () => {
-      el.mapStatus.textContent = 'Konum izni verilmedi. Rota yine oluşturulabilir.';
-      showToast('Konum alınamadı.');
+      if (!silent) {
+        el.mapStatus.textContent = 'Konum alınamadı. Rota yine oluşturulabilir.';
+        showToast('Konum alınamadı.');
+      }
     },
-    { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
+    { enableHighAccuracy: true, timeout: 8000, maximumAge: 120000 },
   );
 }
 
@@ -274,7 +369,7 @@ async function drawRoute() {
   } catch {
     const fallback = estimateStraightLineRoute(points);
     updateRouteMetrics(fallback.distance, fallback.duration);
-    el.mapStatus.textContent = 'Yol rotası alınamadı; yaklaşık mesafe gösteriliyor.';
+    el.mapStatus.textContent = 'Yaklaşık rota gösteriliyor.';
   }
 }
 
@@ -299,34 +394,53 @@ function haversine(lat1, lng1, lat2, lng2) {
 
 function render() {
   renderList();
+  renderNextStop();
   renderMarkers();
   renderUserMarker();
   const pending = state.stops.filter((stop) => stop.status === 'pending').length;
-  el.stopCount.textContent = String(state.stops.length);
+  el.stopCount.textContent = String(pending);
   el.emptyState.hidden = state.stops.length > 0;
   el.optimizeBtn.disabled = pending < 2;
   el.startRouteBtn.disabled = pending < 1;
 }
 
+function renderNextStop() {
+  const next = getNextStop();
+  if (!next) {
+    el.nextStopCard.hidden = true;
+    return;
+  }
+  const pending = state.stops.filter((stop) => stop.status === 'pending');
+  el.nextStopCard.hidden = false;
+  el.nextRecipient.textContent = next.recipient || 'Sıradaki teslimat';
+  el.nextAddress.textContent = next.address;
+  el.nextBadge.textContent = `1/${pending.length}`;
+  el.nextNote.textContent = next.note || '';
+  el.nextNote.hidden = !next.note;
+  el.nextCallBtn.hidden = !next.phone;
+}
+
 function renderList() {
   el.stopList.replaceChildren();
-  state.stops.forEach((stop, index) => {
+  let pendingNumber = 0;
+  state.stops.forEach((stop) => {
+    if (stop.status === 'pending') pendingNumber += 1;
     const li = document.createElement('li');
-    li.className = `stop-card ${stop.status === 'done' ? 'done' : ''}`;
+    li.className = `stop-card ${stop.status}`;
 
     const row = document.createElement('div');
     row.className = 'stop-row';
 
     const number = document.createElement('div');
     number.className = 'stop-index';
-    number.textContent = stop.status === 'done' ? '✓' : stop.status === 'failed' ? '!' : String(index + 1);
+    number.textContent = stop.status === 'done' ? '✓' : stop.status === 'failed' ? '!' : String(pendingNumber);
 
     const main = document.createElement('div');
     main.className = 'stop-main';
 
     const recipient = document.createElement('div');
     recipient.className = 'stop-recipient';
-    recipient.textContent = stop.recipient || `Durak ${index + 1}`;
+    recipient.textContent = stop.recipient || (stop.status === 'pending' ? `Durak ${pendingNumber}` : 'Tamamlanan durak');
 
     const address = document.createElement('div');
     address.className = 'stop-address';
@@ -347,16 +461,16 @@ function renderList() {
 
     if (stop.status === 'pending') {
       actions.append(
-        actionButton('Navigasyon', () => openNavigation(stop)),
-        actionButton('✓ Teslim edildi', () => setStopStatus(stop.id, 'done'), 'success'),
-        actionButton('Edilemedi', () => setStopStatus(stop.id, 'failed')),
+        actionButton('Git', () => openNavigation(stop), 'go'),
+        actionButton('✓ Teslim', () => setStopStatus(stop.id, 'done'), 'success'),
+        actionButton('Olmadı', () => setStopStatus(stop.id, 'failed')),
       );
     } else {
       actions.append(actionButton('Geri al', () => setStopStatus(stop.id, 'pending')));
     }
 
     if (stop.phone) {
-      actions.append(actionButton('Ara', () => { window.location.href = `tel:${stop.phone.replace(/[^+\d]/g, '')}`; }));
+      actions.append(actionButton('Ara', () => { window.location.href = `tel:${sanitizePhone(stop.phone)}`; }));
     }
     actions.append(actionButton('Sil', () => deleteStop(stop.id), 'danger'));
     li.append(actions);
@@ -377,12 +491,14 @@ function renderMarkers() {
   state.markers.forEach((marker) => map.removeLayer(marker));
   state.markers = [];
 
-  state.stops.forEach((stop, index) => {
-    const doneClass = stop.status === 'done' ? ' done' : '';
-    const label = stop.status === 'done' ? '✓' : stop.status === 'failed' ? '!' : String(index + 1);
+  let pendingNumber = 0;
+  state.stops.forEach((stop) => {
+    if (stop.status === 'pending') pendingNumber += 1;
+    const statusClass = stop.status === 'done' ? ' done' : stop.status === 'failed' ? ' failed' : '';
+    const label = stop.status === 'done' ? '✓' : stop.status === 'failed' ? '!' : String(pendingNumber);
     const icon = L.divIcon({
       className: '',
-      html: `<div class="marker-dot${doneClass}">${label}</div>`,
+      html: `<div class="marker-dot${statusClass}">${label}</div>`,
       iconSize: [34, 34],
       iconAnchor: [17, 17],
     });
@@ -414,19 +530,36 @@ async function setStopStatus(id, status) {
   const stop = state.stops.find((item) => item.id === id);
   if (!stop) return;
   stop.status = status;
+  normalizeStopOrder();
   saveState();
   render();
-  await drawRoute();
-  showToast(status === 'done' ? 'Teslimat tamamlandı.' : status === 'failed' ? 'Teslim edilemedi olarak işaretlendi.' : 'Durak tekrar beklemeye alındı.');
+  haptic(status === 'done' ? 35 : 18);
+  drawRoute();
+  showToast(status === 'done' ? 'Teslim edildi · sıradaki hazır.' : status === 'failed' ? 'Olmadı olarak işaretlendi · sıradaki hazır.' : 'Durak tekrar beklemede.');
 }
 
 async function deleteStop(id) {
   state.stops = state.stops.filter((stop) => stop.id !== id);
   saveState();
   render();
-  await drawRoute();
+  drawRoute();
   fitStops();
   showToast('Durak silindi.');
+}
+
+function normalizeStopOrder() {
+  state.stops = [
+    ...state.stops.filter((stop) => stop.status === 'pending'),
+    ...state.stops.filter((stop) => stop.status !== 'pending'),
+  ];
+}
+
+function getNextStop() {
+  return state.stops.find((stop) => stop.status === 'pending') || null;
+}
+
+function sanitizePhone(phone) {
+  return phone.replace(/[^+\d]/g, '');
 }
 
 function openNavigation(stop) {
@@ -435,15 +568,18 @@ function openNavigation(stop) {
   const url = isIOS
     ? `https://maps.apple.com/?daddr=${encodeURIComponent(destination)}&dirflg=d`
     : `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}&travelmode=driving`;
+  haptic(12);
   window.open(url, '_blank', 'noopener,noreferrer');
 }
 
 function fitStops() {
-  const points = state.stops.map((stop) => [stop.lat, stop.lng]);
+  const points = state.stops
+    .filter((stop) => stop.status === 'pending')
+    .map((stop) => [stop.lat, stop.lng]);
   if (state.userLocation) points.push([state.userLocation.lat, state.userLocation.lng]);
   if (!points.length) return;
   if (points.length === 1) map.setView(points[0], 14);
-  else map.fitBounds(points, { padding: [38, 38], maxZoom: 15 });
+  else map.fitBounds(points, { padding: [34, 34], maxZoom: 15 });
 }
 
 function restoreMapBounds() {
@@ -489,12 +625,23 @@ function setFormBusy(busy, message = '') {
   if (message) el.formMessage.textContent = message;
 }
 
+function setQuickBusy(busy) {
+  el.quickAddressInput.disabled = busy;
+  el.quickPasteBtn.disabled = busy;
+  el.quickAddBtn.disabled = busy;
+  el.quickAddBtn.textContent = busy ? '…' : 'Ekle';
+}
+
+function haptic(ms) {
+  if (navigator.vibrate) navigator.vibrate(ms);
+}
+
 let toastTimer;
 function showToast(message) {
   clearTimeout(toastTimer);
   el.toast.textContent = message;
   el.toast.classList.add('show');
-  toastTimer = setTimeout(() => el.toast.classList.remove('show'), 2200);
+  toastTimer = setTimeout(() => el.toast.classList.remove('show'), 1800);
 }
 
 function saveState() {
