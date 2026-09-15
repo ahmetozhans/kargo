@@ -17,67 +17,7 @@
   <link rel="stylesheet" href="./fast.css" />
   <link rel="stylesheet" href="./search.css" />
   <link rel="stylesheet" href="./map-shell.css" />
-  <style>
-    /* Reference-screen polish: more map, cleaner search, clearer layer control. */
-    .route-sheet.sheet-mid { height: 43%; min-height: 330px; }
-    .route-sheet.sheet-low { height: 27%; min-height: 235px; }
-    body.has-stops .route-sheet.sheet-mid { height: 56%; }
-    .map-right-tools { bottom: calc(43vh + 38px); }
-    .map-status-float { bottom: calc(43vh + 22px); font-size: 10px; }
-    body.has-stops .map-right-tools { bottom: calc(56vh + 32px); }
-    body.has-stops .map-status-float { bottom: calc(56vh + 20px); }
-    body.sheet-is-low .map-right-tools { bottom: calc(27vh + 32px); }
-    body.sheet-is-low .map-status-float { bottom: calc(27vh + 20px); }
-
-    .map-search {
-      grid-template-columns: auto minmax(0,1fr) auto;
-      padding: 5px 7px;
-      border-radius: 18px;
-    }
-    .map-search input { height: 46px; font-size: 14px; }
-    .search-submit {
-      position: absolute !important;
-      width: 1px !important;
-      height: 1px !important;
-      padding: 0 !important;
-      margin: -1px !important;
-      overflow: hidden !important;
-      clip: rect(0 0 0 0) !important;
-      white-space: nowrap !important;
-      border: 0 !important;
-    }
-    .sheet-empty-state { min-height: calc(100% - 68px); padding-top: 10px; }
-    .sheet-empty-state > p { margin: 14px 0 22px; font-size: 14px; line-height: 1.3; }
-    .sheet-main-add, .sheet-copy-route { min-height: 53px; font-size: 14px; }
-    .sheet-main-add span { font-size: 20px; }
-
-    .compact-summary .metric-value { font-size: 16px; }
-    .compact-summary .metric-label { font-size: 10px; }
-    .sheet-next-stop h2 { font-size: 18px; }
-    .next-address { font-size: 13px; }
-    .next-note { font-size: 11px; }
-    .next-action { font-size: 12px; }
-    .sheet-stop-panel .panel-heading h2 { font-size: 18px; }
-    .sheet-stop-panel .text-button { font-size: 11px; }
-    .stop-recipient { font-size: 14px; }
-    .stop-address, .stop-note { font-size: 12px; }
-    .pill-button { font-size: 11px; }
-    .mini-menu button { font-size: 13px; }
-
-    #layerBtn { font-size: 0; overflow: hidden; }
-    #layerBtn::before,
-    #layerBtn::after {
-      content: '';
-      position: absolute;
-      width: 24px;
-      height: 16px;
-      border: 2.5px solid #2f73f6;
-      border-radius: 3px;
-      box-sizing: border-box;
-    }
-    #layerBtn::before { transform: translateY(-5px) rotate(30deg) skewX(-4deg); }
-    #layerBtn::after { transform: translateY(5px) rotate(30deg) skewX(-4deg); opacity: .78; }
-  </style>
+  <link rel="stylesheet" href="./spoke.css" />
 </head>
 <body class="map-app">
   <main class="map-shell">
@@ -89,8 +29,8 @@
       </button>
 
       <div class="map-right-tools">
-        <button type="button" class="map-float" id="layerBtn" aria-label="Harita katmanı">◇</button>
-        <button type="button" class="map-float locate-float" id="locateBtn" aria-label="Konumumu bul">◎</button>
+        <button type="button" class="map-float" id="layerBtn" aria-label="Harita katmanı">Katman</button>
+        <button type="button" class="map-float locate-float" id="locateBtn" aria-label="Konumumu bul">Konum</button>
       </div>
 
       <div class="map-status map-status-float" id="mapStatus">Durak ekleyerek rotanı oluştur.</div>
@@ -110,10 +50,23 @@
       <div class="sheet-scroll" id="sheetScroll">
         <form class="quick-add map-search" id="quickAddForm">
           <span class="search-icon" aria-hidden="true">⌕</span>
-          <input id="quickAddressInput" autocomplete="off" enterkeyhint="search" placeholder="Firma adı veya Bursa adresi" aria-label="Firma veya adres ara" />
-          <button type="button" class="quick-paste scan-like" id="quickPasteBtn" aria-label="Panodan yapıştır">▧</button>
+          <input id="quickAddressInput" autocomplete="off" enterkeyhint="search" placeholder="Durak eklemek için dokun" aria-label="Firma veya Bursa adresi ara" />
+          <button type="button" class="quick-paste scan-like" id="quickPasteBtn" aria-label="Panodan adres yapıştır">Yapıştır</button>
+          <button type="button" class="spoke-mic" id="voiceSearchBtn" aria-label="Sesle durak ara">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 14.5a3.5 3.5 0 0 0 3.5-3.5V6a3.5 3.5 0 0 0-7 0v5a3.5 3.5 0 0 0 3.5 3.5Z" stroke="currentColor" stroke-width="2"/><path d="M5.5 10.5v.5a6.5 6.5 0 0 0 13 0v-.5M12 17.5V21M9 21h6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          </button>
+          <button type="button" class="spoke-more" id="routeMoreBtn" aria-label="Rota seçenekleri">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
+          </button>
           <button type="submit" class="quick-submit search-submit" id="quickAddBtn">Ara</button>
         </form>
+
+        <div class="spoke-more-menu" id="routeMoreMenu" hidden>
+          <button type="button" id="moreOptimizeBtn">Rotayı sırala</button>
+          <button type="button" id="moreCopyBtn">Eski rotayı kopyala</button>
+          <button type="button" id="moreClearBtn">Bitenleri temizle</button>
+        </div>
+
         <div id="searchResults" class="search-results sheet-search-results" hidden aria-live="polite"></div>
 
         <section class="summary compact-summary" aria-label="Rota özeti">
@@ -130,31 +83,31 @@
           <p class="next-address" id="nextAddress"></p>
           <p class="next-note" id="nextNote" hidden></p>
           <div class="next-actions">
-            <button type="button" class="next-action primary" id="nextNavigateBtn">Git →</button>
-            <button type="button" class="next-action success" id="nextDoneBtn">✓ Teslim</button>
-            <button type="button" class="next-action" id="nextFailedBtn">Olmadı</button>
+            <button type="button" class="next-action primary" id="nextNavigateBtn">Navigasyon</button>
+            <button type="button" class="next-action" id="nextFailedBtn">Başarısız</button>
+            <button type="button" class="next-action success" id="nextDoneBtn">Teslim edildi</button>
             <button type="button" class="next-action" id="nextCallBtn" hidden>Ara</button>
           </div>
         </section>
 
         <div id="emptyState" class="sheet-empty-state">
-          <div class="empty-pin" aria-hidden="true">⌖</div>
-          <p>Rotanı oluşturmaya başlamak için ilk durağını ekle</p>
+          <div class="empty-pin" aria-hidden="true">＋</div>
+          <p>Rotanı oluşturmaya başlamak için ilk duraklarını ekle</p>
           <button class="sheet-main-add" id="addStopBtn" type="button"><span>＋</span> Durak ekle</button>
           <button class="sheet-copy-route" id="copyRouteBtn" type="button">Eski bir rotadaki durakları kopyala</button>
         </div>
 
         <section class="panel sheet-stop-panel">
           <div class="panel-heading">
-            <div><p class="eyebrow">DURAKLAR</p><h2>Dağıtım listesi</h2></div>
+            <div><p class="eyebrow">BUGÜNKÜ ROTA</p><h2>Duraklar</h2></div>
             <button class="text-button" id="clearDoneBtn">Bitenleri temizle</button>
           </div>
           <ol id="stopList" class="stop-list" aria-live="polite"></ol>
         </section>
 
         <div class="bottom-actions sheet-route-actions">
-          <button class="secondary-button" id="optimizeBtn" disabled><span>⇅</span> Sırala</button>
-          <button class="primary-button" id="startRouteBtn" disabled>Sıradaki durağa git <span>→</span></button>
+          <button class="secondary-button" id="optimizeBtn" disabled><span>⇅</span> Rotayı optimize et</button>
+          <button class="primary-button" id="startRouteBtn" disabled>Rotayı başlat <span>→</span></button>
         </div>
       </div>
     </section>
@@ -164,7 +117,7 @@
     <form id="stopForm" method="dialog" class="sheet">
       <div class="sheet-handle"></div>
       <div class="sheet-header">
-        <div><p class="eyebrow">DETAYLI EKLE</p><h2>Teslimat ekle</h2></div>
+        <div><p class="eyebrow">DURAK EKLE</p><h2>Teslimat ekle</h2></div>
         <button type="button" class="icon-button small" id="closeDialogBtn" aria-label="Kapat">×</button>
       </div>
       <label><span>Firma / adres *</span><textarea id="addressInput" rows="3" autocomplete="street-address" placeholder="Firma adı veya Bursa adresi" required></textarea></label>
@@ -185,5 +138,6 @@
   <script src="./app.js" defer></script>
   <script src="./search.js" defer></script>
   <script src="./map-shell.js" defer></script>
+  <script src="./spoke-ui.js" defer></script>
 </body>
 </html>
