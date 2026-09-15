@@ -1,8 +1,9 @@
-const CACHE_NAME = 'kargo-shell-v1';
+const CACHE_NAME = 'kargo-shell-v2';
 const APP_SHELL = [
   './',
   './index.html',
   './styles.css',
+  './fast.css',
   './app.js',
   './manifest.webmanifest',
   './icon.svg'
@@ -30,17 +31,17 @@ self.addEventListener('fetch', (event) => {
   if (url.origin !== self.location.origin) return;
 
   if (request.mode === 'navigate') {
-    event.respondWith(
-      fetch(request).catch(() => caches.match('./index.html'))
-    );
+    event.respondWith(fetch(request).catch(() => caches.match('./index.html')));
     return;
   }
 
   event.respondWith(
-    caches.match(request).then((cached) => cached || fetch(request).then((response) => {
-      const copy = response.clone();
-      caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
-      return response;
-    }))
+    fetch(request)
+      .then((response) => {
+        const copy = response.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+        return response;
+      })
+      .catch(() => caches.match(request))
   );
 });
