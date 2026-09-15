@@ -24,6 +24,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Build Bursa POI search index
+        run: python3 scripts/build_bursa_poi.py
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
