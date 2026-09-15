@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#f7f7f5" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Kargo" />
+  <title>Kargo · Akıllı Dağıtım</title>
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="./icon.svg" />
+  <link rel="preconnect" href="https://unpkg.com" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <main class="app-shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">BUGÜNKÜ ROTA</p>
+        <h1>Kargo</h1>
+      </div>
+      <button class="icon-button" id="locateBtn" aria-label="Konumumu bul" title="Konumumu bul">
+        <span aria-hidden="true">⌖</span>
+      </button>
+    </header>
+
+    <section class="summary" aria-label="Rota özeti">
+      <div class="metric">
+        <span class="metric-value" id="stopCount">0</span>
+        <span class="metric-label">Durak</span>
+      </div>
+      <div class="metric">
+        <span class="metric-value" id="distanceValue">—</span>
+        <span class="metric-label">Mesafe</span>
+      </div>
+      <div class="metric">
+        <span class="metric-value" id="durationValue">—</span>
+        <span class="metric-label">Tahmini</span>
+      </div>
+    </section>
+
+    <section class="map-card" aria-label="Rota haritası">
+      <div id="map"></div>
+      <div class="map-status" id="mapStatus">Durak ekleyerek rotanı oluştur.</div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">DURAKLAR</p>
+          <h2>Dağıtım listesi</h2>
+        </div>
+        <button class="text-button" id="clearDoneBtn">Tamamlananları temizle</button>
+      </div>
+
+      <div id="emptyState" class="empty-state">
+        <div class="empty-icon">↗</div>
+        <h3>İlk durağı ekle</h3>
+        <p>Adresleri ekle, sırala ve tek ekrandan dağıtıma çık.</p>
+      </div>
+
+      <ol id="stopList" class="stop-list" aria-live="polite"></ol>
+    </section>
+
+    <div class="bottom-actions">
+      <button class="secondary-button" id="optimizeBtn" disabled>
+        <span>⇅</span> Sırala
+      </button>
+      <button class="primary-button" id="startRouteBtn" disabled>
+        Rotayı başlat <span>→</span>
+      </button>
+    </div>
+
+    <button class="fab" id="addStopBtn" aria-label="Durak ekle">+</button>
+  </main>
+
+  <dialog id="stopDialog" class="sheet-dialog">
+    <form id="stopForm" method="dialog" class="sheet">
+      <div class="sheet-handle"></div>
+      <div class="sheet-header">
+        <div>
+          <p class="eyebrow">YENİ DURAK</p>
+          <h2>Teslimat ekle</h2>
+        </div>
+        <button type="button" class="icon-button small" id="closeDialogBtn" aria-label="Kapat">×</button>
+      </div>
+
+      <label>
+        <span>Adres *</span>
+        <textarea id="addressInput" rows="3" autocomplete="street-address" placeholder="Örn. Dobruca Mah. ... Bursa" required></textarea>
+      </label>
+      <div class="form-grid">
+        <label>
+          <span>Alıcı</span>
+          <input id="recipientInput" autocomplete="name" placeholder="Ad soyad" />
+        </label>
+        <label>
+          <span>Telefon</span>
+          <input id="phoneInput" type="tel" autocomplete="tel" inputmode="tel" placeholder="05xx ..." />
+        </label>
+      </div>
+      <label>
+        <span>Not</span>
+        <input id="noteInput" placeholder="Kapı kodu, kat, teslimat notu..." />
+      </label>
+
+      <div id="formMessage" class="form-message" role="status"></div>
+      <button class="primary-button full" id="saveStopBtn" type="submit">Adresi bul ve ekle</button>
+      <button class="ghost-button full" id="useMapPointBtn" type="button">Haritadan nokta seç</button>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="" defer></script>
+  <script src="./app.js" defer></script>
+</body>
+</html>
