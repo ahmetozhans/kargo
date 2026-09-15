@@ -1,0 +1,20 @@
+{
+  "name": "Kargo · Akıllı Dağıtım",
+  "short_name": "Kargo",
+  "description": "Mobil dağıtım rotası ve teslimat takip uygulaması",
+  "lang": "tr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#f6f6f3",
+  "theme_color": "#f6f6f3",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
