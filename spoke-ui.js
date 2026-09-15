@@ -68,16 +68,42 @@
     recognition.start();
   });
 
-  /* Keep the sheet stable when Safari's bottom/keyboard chrome changes the visual viewport. */
-  if (window.visualViewport) {
-    let raf = 0;
-    const syncViewport = () => {
-      cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(() => {
-        document.documentElement.style.setProperty('--visual-vh', `${window.visualViewport.height}px`);
-      });
-    };
-    window.visualViewport.addEventListener('resize', syncViewport);
-    syncViewport();
+  let viewportRaf = 0;
+  let mapRaf = 0;
+
+  function syncMapSize() {
+    cancelAnimationFrame(mapRaf);
+    mapRaf = requestAnimationFrame(() => {
+      try {
+        if (typeof map !== 'undefined' && map?.invalidateSize) {
+          map.invalidateSize({ pan: false, debounceMoveend: true });
+        }
+      } catch {
+        // Map may not be ready on the first frame.
+      }
+    });
   }
+
+  function syncViewport() {
+    cancelAnimationFrame(viewportRaf);
+    viewportRaf = requestAnimationFrame(() => {
+      const height = window.visualViewport?.height || window.innerHeight;
+      document.documentElement.style.setProperty('--visual-vh', `${height}px`);
+      syncMapSize();
+    });
+  }
+
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', syncViewport);
+    window.visualViewport.addEventListener('scroll', syncViewport);
+  }
+  window.addEventListener('resize', syncViewport);
+  window.addEventListener('orientationchange', () => setTimeout(syncViewport, 120));
+  window.addEventListener('pageshow', syncViewport);
+  window.addEventListener('load', syncViewport);
+
+  syncViewport();
+  setTimeout(syncMapSize, 80);
+  setTimeout(syncMapSize, 300);
+  setTimeout(syncMapSize, 900);
 })();
