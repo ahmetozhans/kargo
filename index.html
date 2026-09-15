@@ -7,13 +7,14 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Kargo" />
-  <title>Kargo · Akıllı Dağıtım</title>
+  <title>Kargo · Hızlı Dağıtım</title>
   <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="icon" href="./icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="./icon.svg" />
   <link rel="preconnect" href="https://unpkg.com" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
   <link rel="stylesheet" href="./styles.css" />
+  <link rel="stylesheet" href="./fast.css" />
 </head>
 <body>
   <main class="app-shell">
@@ -27,10 +28,16 @@
       </button>
     </header>
 
+    <form class="quick-add" id="quickAddForm">
+      <input id="quickAddressInput" autocomplete="street-address" enterkeyhint="done" placeholder="Adresi yaz veya yapıştır…" aria-label="Hızlı adres ekle" />
+      <button type="button" class="quick-paste" id="quickPasteBtn">Yapıştır</button>
+      <button type="submit" class="quick-submit" id="quickAddBtn">Ekle</button>
+    </form>
+
     <section class="summary" aria-label="Rota özeti">
       <div class="metric">
         <span class="metric-value" id="stopCount">0</span>
-        <span class="metric-label">Durak</span>
+        <span class="metric-label">Kalan</span>
       </div>
       <div class="metric">
         <span class="metric-value" id="distanceValue">—</span>
@@ -42,6 +49,24 @@
       </div>
     </section>
 
+    <section id="nextStopCard" class="next-stop" hidden aria-live="polite">
+      <div class="next-stop-head">
+        <div>
+          <p class="eyebrow">SIRADAKİ DURAK</p>
+          <h2 id="nextRecipient">—</h2>
+        </div>
+        <span class="next-badge" id="nextBadge">1</span>
+      </div>
+      <p class="next-address" id="nextAddress"></p>
+      <p class="next-note" id="nextNote" hidden></p>
+      <div class="next-actions">
+        <button type="button" class="next-action primary" id="nextNavigateBtn">Git →</button>
+        <button type="button" class="next-action success" id="nextDoneBtn">✓ Teslim</button>
+        <button type="button" class="next-action" id="nextFailedBtn">Olmadı</button>
+        <button type="button" class="next-action" id="nextCallBtn" hidden>Ara</button>
+      </div>
+    </section>
+
     <section class="map-card" aria-label="Rota haritası">
       <div id="map"></div>
       <div class="map-status" id="mapStatus">Durak ekleyerek rotanı oluştur.</div>
@@ -50,16 +75,16 @@
     <section class="panel">
       <div class="panel-heading">
         <div>
-          <p class="eyebrow">DURAKLAR</p>
+          <p class="eyebrow">TÜM DURAKLAR</p>
           <h2>Dağıtım listesi</h2>
         </div>
-        <button class="text-button" id="clearDoneBtn">Tamamlananları temizle</button>
+        <button class="text-button" id="clearDoneBtn">Bitenleri temizle</button>
       </div>
 
       <div id="emptyState" class="empty-state">
         <div class="empty-icon">↗</div>
         <h3>İlk durağı ekle</h3>
-        <p>Adresleri ekle, sırala ve tek ekrandan dağıtıma çık.</p>
+        <p>Üstteki kutuya adresi yapıştır. Detay gerekiyorsa + düğmesini kullan.</p>
       </div>
 
       <ol id="stopList" class="stop-list" aria-live="polite"></ol>
@@ -70,11 +95,11 @@
         <span>⇅</span> Sırala
       </button>
       <button class="primary-button" id="startRouteBtn" disabled>
-        Rotayı başlat <span>→</span>
+        Sıradaki durağa git <span>→</span>
       </button>
     </div>
 
-    <button class="fab" id="addStopBtn" aria-label="Durak ekle">+</button>
+    <button class="fab" id="addStopBtn" aria-label="Detaylı durak ekle" title="Detaylı durak ekle">+</button>
   </main>
 
   <dialog id="stopDialog" class="sheet-dialog">
@@ -82,7 +107,7 @@
       <div class="sheet-handle"></div>
       <div class="sheet-header">
         <div>
-          <p class="eyebrow">YENİ DURAK</p>
+          <p class="eyebrow">DETAYLI EKLE</p>
           <h2>Teslimat ekle</h2>
         </div>
         <button type="button" class="icon-button small" id="closeDialogBtn" aria-label="Kapat">×</button>
