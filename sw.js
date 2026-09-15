@@ -1,4 +1,4 @@
-const CACHE_NAME = 'kargo-shell-v8';
+const CACHE_NAME = 'kargo-shell-v9';
 const APP_SHELL = [
   './',
   './index.html',
@@ -8,10 +8,12 @@ const APP_SHELL = [
   './map-shell.css',
   './spoke.css',
   './spoke-tune.css',
+  './spoke-add.css',
   './app.js',
   './search.js',
   './map-shell.js',
   './spoke-ui.js',
+  './spoke-add.js',
   './manifest.webmanifest',
   './icon.svg'
 ];
