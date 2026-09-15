@@ -105,15 +105,24 @@ function scoreLocal(item, query) {
   return 99;
 }
 
+function validCoordinate(value) {
+  if (value === null || value === undefined || value === '') return false;
+  return Number.isFinite(Number(value));
+}
+
+function hasValidPoint(item) {
+  return validCoordinate(item?.lat) && validCoordinate(item?.lng);
+}
+
 function indexItem(row, provider = 'local') {
-  const lat = Number(row.lat);
-  const lng = Number(row.lng);
+  const lat = validCoordinate(row.lat) ? Number(row.lat) : null;
+  const lng = validCoordinate(row.lng) ? Number(row.lng) : null;
   return {
     provider: row.provider || provider,
     name: row.n || row.name || 'Bursa durağı',
     address: row.a || row.address || 'Bursa',
-    lat: Number.isFinite(lat) ? lat : null,
-    lng: Number.isFinite(lng) ? lng : null,
+    lat,
+    lng,
     _name: normalizeText(row.n || row.name || ''),
     _address: normalizeText(row.a || row.address || ''),
   };
@@ -142,7 +151,7 @@ function mergeIndexRows(...groups) {
 }
 
 function rememberPlace(item) {
-  if (!item?.name || !Number.isFinite(Number(item.lat)) || !Number.isFinite(Number(item.lng))) return;
+  if (!item?.name || !hasValidPoint(item)) return;
   const saved = loadLearnedPlaces();
   const candidate = indexItem({
     provider: 'learned',
@@ -165,6 +174,12 @@ function rememberPlace(item) {
   poiIndex = mergeIndexRows(next, poiIndex);
 }
 
+function entryCompare(a, b) {
+  return a.score - b.score
+    || a.item.name.length - b.item.name.length
+    || a.item.name.localeCompare(b.item.name, 'tr');
+}
+
 function searchLocalBusinesses(query) {
   if (!poiReady || !poiIndex.length) return [];
   const q = normalizeText(query.trim());
@@ -180,12 +195,6 @@ function searchLocalBusinesses(query) {
     })
     .slice(0, 8)
     .map((entry) => entry.item);
-}
-
-function entryCompare(a, b) {
-  return a.score - b.score
-    || a.item.name.length - b.item.name.length
-    || a.item.name.localeCompare(b.item.name, 'tr');
 }
 
 const poiLoadPromise = fetch('./bursa-poi.json?v=17', { cache: 'force-cache' })
@@ -245,7 +254,7 @@ async function findWithNominatim(query) {
 }
 
 async function resolvePlacePoint(item) {
-  if (Number.isFinite(Number(item.lat)) && Number.isFinite(Number(item.lng))) return item;
+  if (hasValidPoint(item)) return item;
 
   let rows = await findWithNominatim(item.address || item.name);
   if (!rows.length && item.name) rows = await findWithNominatim(item.name);
@@ -359,7 +368,7 @@ if (bursaForm && bursaInput && bursaResultsBox) {
     if (!item) return;
 
     button.disabled = true;
-    const oldText = button.style.opacity;
+    const oldOpacity = button.style.opacity;
     button.style.opacity = '0.6';
 
     try {
@@ -376,7 +385,7 @@ if (bursaForm && bursaInput && bursaResultsBox) {
       showToast(`${resolved.name} eklendi.`);
     } catch {
       button.disabled = false;
-      button.style.opacity = oldText;
+      button.style.opacity = oldOpacity;
       showToast('Firmanın konumu bulunamadı.');
     }
   });
