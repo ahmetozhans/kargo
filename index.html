@@ -17,6 +17,53 @@
   <link rel="stylesheet" href="./fast.css" />
   <link rel="stylesheet" href="./search.css" />
   <link rel="stylesheet" href="./map-shell.css" />
+  <style>
+    /* Reference-screen polish: more map, cleaner search, clearer layer control. */
+    .route-sheet.sheet-mid { height: 43%; min-height: 330px; }
+    .route-sheet.sheet-low { height: 27%; min-height: 235px; }
+    body.has-stops .route-sheet.sheet-mid { height: 56%; }
+    .map-right-tools { bottom: calc(43vh + 38px); }
+    .map-status-float { bottom: calc(43vh + 22px); }
+    body.has-stops .map-right-tools { bottom: calc(56vh + 32px); }
+    body.has-stops .map-status-float { bottom: calc(56vh + 20px); }
+    body.sheet-is-low .map-right-tools { bottom: calc(27vh + 32px); }
+    body.sheet-is-low .map-status-float { bottom: calc(27vh + 20px); }
+
+    .map-search {
+      grid-template-columns: auto minmax(0,1fr) auto;
+      padding: 5px 7px;
+      border-radius: 18px;
+    }
+    .map-search input { height: 46px; font-size: 16px; }
+    .search-submit {
+      position: absolute !important;
+      width: 1px !important;
+      height: 1px !important;
+      padding: 0 !important;
+      margin: -1px !important;
+      overflow: hidden !important;
+      clip: rect(0 0 0 0) !important;
+      white-space: nowrap !important;
+      border: 0 !important;
+    }
+    .sheet-empty-state { min-height: calc(100% - 68px); padding-top: 10px; }
+    .sheet-empty-state > p { margin: 16px 0 26px; font-size: 16px; }
+    .sheet-main-add, .sheet-copy-route { min-height: 55px; }
+
+    #layerBtn { font-size: 0; overflow: hidden; }
+    #layerBtn::before,
+    #layerBtn::after {
+      content: '';
+      position: absolute;
+      width: 24px;
+      height: 16px;
+      border: 2.5px solid #2f73f6;
+      border-radius: 3px;
+      box-sizing: border-box;
+    }
+    #layerBtn::before { transform: translateY(-5px) rotate(30deg) skewX(-4deg); }
+    #layerBtn::after { transform: translateY(5px) rotate(30deg) skewX(-4deg); opacity: .78; }
+  </style>
 </head>
 <body class="map-app">
   <main class="map-shell">
@@ -56,26 +103,14 @@
         <div id="searchResults" class="search-results sheet-search-results" hidden aria-live="polite"></div>
 
         <section class="summary compact-summary" aria-label="Rota özeti">
-          <div class="metric">
-            <span class="metric-value" id="stopCount">0</span>
-            <span class="metric-label">Kalan</span>
-          </div>
-          <div class="metric">
-            <span class="metric-value" id="distanceValue">—</span>
-            <span class="metric-label">Mesafe</span>
-          </div>
-          <div class="metric">
-            <span class="metric-value" id="durationValue">—</span>
-            <span class="metric-label">Tahmini</span>
-          </div>
+          <div class="metric"><span class="metric-value" id="stopCount">0</span><span class="metric-label">Kalan</span></div>
+          <div class="metric"><span class="metric-value" id="distanceValue">—</span><span class="metric-label">Mesafe</span></div>
+          <div class="metric"><span class="metric-value" id="durationValue">—</span><span class="metric-label">Tahmini</span></div>
         </section>
 
         <section id="nextStopCard" class="next-stop sheet-next-stop" hidden aria-live="polite">
           <div class="next-stop-head">
-            <div>
-              <p class="eyebrow">SIRADAKİ DURAK</p>
-              <h2 id="nextRecipient">—</h2>
-            </div>
+            <div><p class="eyebrow">SIRADAKİ DURAK</p><h2 id="nextRecipient">—</h2></div>
             <span class="next-badge" id="nextBadge">1</span>
           </div>
           <p class="next-address" id="nextAddress"></p>
@@ -97,10 +132,7 @@
 
         <section class="panel sheet-stop-panel">
           <div class="panel-heading">
-            <div>
-              <p class="eyebrow">DURAKLAR</p>
-              <h2>Dağıtım listesi</h2>
-            </div>
+            <div><p class="eyebrow">DURAKLAR</p><h2>Dağıtım listesi</h2></div>
             <button class="text-button" id="clearDoneBtn">Bitenleri temizle</button>
           </div>
           <ol id="stopList" class="stop-list" aria-live="polite"></ol>
@@ -118,16 +150,10 @@
     <form id="stopForm" method="dialog" class="sheet">
       <div class="sheet-handle"></div>
       <div class="sheet-header">
-        <div>
-          <p class="eyebrow">DETAYLI EKLE</p>
-          <h2>Teslimat ekle</h2>
-        </div>
+        <div><p class="eyebrow">DETAYLI EKLE</p><h2>Teslimat ekle</h2></div>
         <button type="button" class="icon-button small" id="closeDialogBtn" aria-label="Kapat">×</button>
       </div>
-      <label>
-        <span>Firma / adres *</span>
-        <textarea id="addressInput" rows="3" autocomplete="street-address" placeholder="Firma adı veya Bursa adresi" required></textarea>
-      </label>
+      <label><span>Firma / adres *</span><textarea id="addressInput" rows="3" autocomplete="street-address" placeholder="Firma adı veya Bursa adresi" required></textarea></label>
       <div class="form-grid">
         <label><span>Alıcı</span><input id="recipientInput" autocomplete="name" placeholder="Ad soyad" /></label>
         <label><span>Telefon</span><input id="phoneInput" type="tel" autocomplete="tel" inputmode="tel" placeholder="05xx ..." /></label>
