@@ -1,8 +1,8 @@
 const BURSA_BBOX = { south: 39.18, west: 28.0, north: 40.82, east: 30.35 };
 const OVERPASS_ENDPOINTS = [
-  'https://overpass.private.coffee/api/interpreter',
-  'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
   'https://overpass-api.de/api/interpreter',
+  'https://overpass.kumi.systems/api/interpreter',
+  'https://overpass.private.coffee/api/interpreter',
 ];
 
 const bursaResultsBox = document.getElementById('searchResults');
@@ -14,6 +14,7 @@ let bursaResults = [];
 let searchTimer = 0;
 let latestQuery = '';
 let liveSearchSeq = 0;
+let activeLiveControllers = [];
 const searchCache = new Map();
 
 function normalizeText(value = '') {
@@ -162,46 +163,56 @@ function parseOverpassElements(data) {
   return rows;
 }
 
+function abortLiveRequests() {
+  activeLiveControllers.forEach((controller) => controller.abort());
+  activeLiveControllers = [];
+}
+
+function buildOverpassQuery(query) {
+  const escaped = escapeOverpassRegex(query.trim());
+  const bbox = `${BURSA_BBOX.south},${BURSA_BBOX.west},${BURSA_BBOX.north},${BURSA_BBOX.east}`;
+  return `[out:json][timeout:4];(
+    nwr["name"~"${escaped}",i](${bbox});
+  );out center tags 10;`;
+}
+
+async function queryOverpassEndpoint(endpoint, ql, controller) {
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+    body: `data=${encodeURIComponent(ql)}`,
+    signal: controller.signal,
+  });
+  if (!response.ok) throw new Error(`Overpass ${response.status}`);
+  return response.json();
+}
+
 async function findBusinessesWithOverpass(query) {
   const cacheKey = normalizeText(query);
   if (searchCache.has(cacheKey)) return searchCache.get(cacheKey);
 
-  const escaped = escapeOverpassRegex(query.trim());
-  const bbox = `${BURSA_BBOX.south},${BURSA_BBOX.west},${BURSA_BBOX.north},${BURSA_BBOX.east}`;
-  const ql = `[out:json][timeout:8];(
-    nwr["name"~"${escaped}",i]["shop"](${bbox});
-    nwr["name"~"${escaped}",i]["office"](${bbox});
-    nwr["name"~"${escaped}",i]["amenity"](${bbox});
-    nwr["name"~"${escaped}",i]["craft"](${bbox});
-    nwr["name"~"${escaped}",i]["tourism"](${bbox});
-    nwr["name"~"${escaped}",i]["leisure"](${bbox});
-    nwr["name"~"${escaped}",i]["healthcare"](${bbox});
-    nwr["name"~"${escaped}",i]["industrial"](${bbox});
-  );out center tags 12;`;
+  abortLiveRequests();
+  const ql = buildOverpassQuery(query);
+  const timeoutId = window.setTimeout(abortLiveRequests, 5000);
 
-  let lastError = null;
-  for (const endpoint of OVERPASS_ENDPOINTS) {
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 9000);
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
-        body: `data=${encodeURIComponent(ql)}`,
-        signal: controller.signal,
-      });
-      clearTimeout(timeout);
-      if (!response.ok) throw new Error(`Overpass ${response.status}`);
-      const data = await response.json();
+  const attempts = OVERPASS_ENDPOINTS.map((endpoint) => {
+    const controller = new AbortController();
+    activeLiveControllers.push(controller);
+    return queryOverpassEndpoint(endpoint, ql, controller).then((data) => {
       const rows = parseOverpassElements(data);
-      searchCache.set(cacheKey, rows);
+      if (!rows.length) throw new Error('empty');
       return rows;
-    } catch (error) {
-      lastError = error;
-    }
-  }
+    });
+  });
 
-  throw lastError || new Error('Canlı firma araması yapılamadı.');
+  try {
+    const rows = await Promise.any(attempts);
+    searchCache.set(cacheKey, rows);
+    return rows;
+  } finally {
+    clearTimeout(timeoutId);
+    abortLiveRequests();
+  }
 }
 
 async function findWithNominatim(query) {
@@ -217,22 +228,29 @@ async function findWithNominatim(query) {
     bounded: '1',
   });
 
-  const response = await fetch(`https://nominatim.openstreetmap.org/search?${params.toString()}`, {
-    headers: { 'Accept-Language': 'tr' },
-  });
-  if (!response.ok) throw new Error('Adres araması yapılamadı.');
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 6500);
+  try {
+    const response = await fetch(`https://nominatim.openstreetmap.org/search?${params.toString()}`, {
+      headers: { 'Accept-Language': 'tr' },
+      signal: controller.signal,
+    });
+    if (!response.ok) throw new Error('Adres araması yapılamadı.');
 
-  const rows = await response.json();
-  return rows
-    .filter((item) => normalizeText(item.display_name || '').includes('bursa'))
-    .slice(0, 6)
-    .map((item) => ({
-      provider: 'nominatim',
-      name: item.namedetails?.name || item.name || item.display_name?.split(',')[0] || 'Bursa durağı',
-      address: item.display_name,
-      lat: Number(item.lat),
-      lng: Number(item.lon),
-    }));
+    const rows = await response.json();
+    return rows
+      .filter((item) => normalizeText(item.display_name || '').includes('bursa'))
+      .slice(0, 6)
+      .map((item) => ({
+        provider: 'nominatim',
+        name: item.namedetails?.name || item.name || item.display_name?.split(',')[0] || 'Bursa durağı',
+        address: item.display_name,
+        lat: Number(item.lat),
+        lng: Number(item.lon),
+      }));
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 async function runLiveSearch(query) {
@@ -254,7 +272,7 @@ async function runLiveSearch(query) {
     renderBursaResults(rows, 'OpenStreetMap işletmeleri');
   } catch {
     if (seq !== liveSearchSeq || trimmed !== latestQuery) return;
-    showBursaMessage('Canlı firma araması şu an cevap vermedi.', 'Açık adres yazıp klavyedeki Ara tuşuna basabilirsin.');
+    showBursaMessage('Canlı sonuç alınamadı.', 'Klavyedeki Ara tuşuna bas; firma veya adresi normal aramayla bulalım.');
   }
 }
 
@@ -267,22 +285,17 @@ async function runSubmitSearch(query) {
   }
 
   ++liveSearchSeq;
+  abortLiveRequests();
   showBursaMessage('Bursa’da aranıyor…', 'Firma veya adres sonucu getiriliyor.');
 
   try {
-    let rows = [];
-    try {
-      rows = await findBusinessesWithOverpass(trimmed);
-    } catch {}
-
-    if (!rows.length) rows = await findWithNominatim(trimmed);
+    const rows = await findWithNominatim(trimmed);
     if (trimmed !== latestQuery) return;
-
     bursaResults = rows;
-    renderBursaResults(rows, rows[0]?.provider === 'overpass' ? 'OpenStreetMap işletmeleri' : 'OpenStreetMap adres');
+    renderBursaResults(rows, 'OpenStreetMap adres ve firma');
   } catch (error) {
     if (trimmed === latestQuery) {
-      showBursaMessage('Arama yapılamadı.', error?.message || 'Tekrar dene.');
+      showBursaMessage('Arama yapılamadı.', error?.name === 'AbortError' ? 'Arama zaman aşımına uğradı. Tekrar dene.' : (error?.message || 'Tekrar dene.'));
     }
   }
 }
@@ -295,11 +308,12 @@ if (bursaForm && bursaInput && bursaResultsBox) {
 
     if (query.length < 3) {
       ++liveSearchSeq;
+      abortLiveRequests();
       hideBursaResults();
       return;
     }
 
-    searchTimer = window.setTimeout(() => runLiveSearch(query), 650);
+    searchTimer = window.setTimeout(() => runLiveSearch(query), 550);
   });
 
   bursaForm.addEventListener('submit', async (event) => {
@@ -339,6 +353,7 @@ if (bursaForm && bursaInput && bursaResultsBox) {
       bursaInput.value = '';
       latestQuery = '';
       ++liveSearchSeq;
+      abortLiveRequests();
       hideBursaResults();
       showToast(`${item.name} eklendi.`);
     } catch {
