@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import {database, currentUser, authenticate, endSession, checkOrigin} from './auth.js';
 const BURSA = { latitude: 40.195, longitude: 29.06 };
 const limits = new Map();
 const json = (res, status, data) => res.writeHead(status, {'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'}).end(JSON.stringify(data));
@@ -28,14 +29,24 @@ export default async function handler(req,res){
   const endpoint=(url.searchParams.get('endpoint')||url.pathname.replace(/^\/api\//,'')).replace(/\/$/,'');
   const key=process.env.GOOGLE_MAPS_SERVER_KEY;
   try{
+    if(!checkOrigin(req))return json(res,403,{message:'İstek kaynağı doğrulanamadı.'});
     if(endpoint==='config' && req.method==='GET') return json(res,200,{mode:key?'live':'demo',browserKey:key?(process.env.GOOGLE_MAPS_BROWSER_KEY||''):'' ,optimizationEnabled:process.env.ENABLE_GOOGLE_OPTIMIZATION==='1',syncEnabled:Boolean(process.env.DATABASE_URL)});
+    if(['session','login','register','logout'].includes(endpoint)){
+      if(!process.env.DATABASE_URL)return json(res,503,{message:'Veritabanı bağlı değil. Giriş yapılamıyor.'});
+      const sql=await database();
+      if(endpoint==='session'&&req.method==='GET')return json(res,200,{user:await currentUser(req,sql)});
+      if(endpoint==='logout'&&req.method==='POST'){await endSession(req,res,sql);return json(res,200,{ok:true})}
+      if((endpoint==='login'||endpoint==='register')&&req.method==='POST')return json(res,200,{user:await authenticate(req,res,sql,{...await body(req),register:endpoint==='register'})});
+      return json(res,405,{message:'Bu işlem desteklenmiyor.'});
+    }
     if(endpoint==='sync' && ['GET','PUT'].includes(req.method)){
       if(!process.env.DATABASE_URL)return json(res,503,{code:'SYNC_DISABLED',message:'Kalıcı veritabanı henüz bağlı değil.'});
+      const sql=await database();
+      const user=await currentUser(req,sql);
       const token=String(req.headers.authorization||'').replace(/^Bearer /i,'');
-      if(!/^[A-Za-z0-9_-]{40,100}$/.test(token))return json(res,401,{message:'Geçerli eşitleme kodu gerekli.'});
-      const account=createHash('sha256').update(token).digest('hex');
-      const {neon}=await import('@neondatabase/serverless');
-      const sql=neon(process.env.DATABASE_URL);
+      if(!user&&!(req.method==='GET'&&/^[A-Za-z0-9_-]{40,100}$/.test(token)))return json(res,401,{message:'Giriş yapman gerekiyor.'});
+      const legacyRead=req.method==='GET'&&/^[A-Za-z0-9_-]{40,100}$/.test(token);
+      const account=legacyRead?createHash('sha256').update(token).digest('hex'):'user:'+user.id;
       await sql`CREATE TABLE IF NOT EXISTS kargo_accounts (account_id text PRIMARY KEY, payload jsonb NOT NULL DEFAULT '{}'::jsonb, revision integer NOT NULL DEFAULT 0, updated_at timestamptz NOT NULL DEFAULT now())`;
       if(req.method==='GET'){
         const rows=await sql`SELECT payload, revision FROM kargo_accounts WHERE account_id=${account}`;
@@ -49,6 +60,7 @@ export default async function handler(req,res){
       if(!rows.length)return json(res,409,{code:'CONFLICT',message:'Başka cihazda yeni kayıt var. Önce eşitle.'});
       return json(res,200,{revision:rows[0].revision});
     }
+    if(!await currentUser(req,await database()))return json(res,401,{message:'Giriş yapman gerekiyor.'});
     if(!key) return json(res,503,{code:'DEMO_MODE',message:'Google anahtarı ayarlı değil; demo rotası kullanılabilir.'});
     if(endpoint==='search' && req.method==='GET'){
       const q=(url.searchParams.get('q')||'').trim();if(q.length<3||q.length>180) return json(res,400,{message:'En az 3 karakter girin.'});
