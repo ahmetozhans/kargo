@@ -13,7 +13,6 @@ export async function database(){
   await sql`CREATE TABLE IF NOT EXISTS kargo_users (id text PRIMARY KEY, email text UNIQUE NOT NULL, salt text NOT NULL, password_hash text NOT NULL, created_at timestamptz NOT NULL DEFAULT now())`;
   await sql`CREATE TABLE IF NOT EXISTS kargo_sessions (token_hash text PRIMARY KEY, user_id text NOT NULL REFERENCES kargo_users(id) ON DELETE CASCADE, expires_at timestamptz NOT NULL)`;
   await sql`CREATE TABLE IF NOT EXISTS kargo_auth_attempts (attempt_key text PRIMARY KEY, attempts integer NOT NULL, window_start timestamptz NOT NULL)`;
-  await sql`CREATE TABLE IF NOT EXISTS kargo_apple_identities (apple_sub text PRIMARY KEY, user_id text NOT NULL REFERENCES kargo_users(id) ON DELETE CASCADE)`;
   return sql;
 }
 
@@ -28,7 +27,7 @@ export async function currentUser(req,sql){
   const cookie=(req.headers.cookie||'').split(';').map(x=>x.trim()).find(x=>x.startsWith(cookieName+'='));
   const token=cookie?.slice(cookieName.length+1);
   if(!token||!/^[a-f0-9]{64}$/.test(token))return null;
-  const rows=await sql`SELECT u.id,u.email,EXISTS(SELECT 1 FROM kargo_apple_identities i WHERE i.user_id=u.id) AS apple_linked FROM kargo_sessions s JOIN kargo_users u ON u.id=s.user_id WHERE s.token_hash=${hash(token)} AND s.expires_at>now()`;
+  const rows=await sql`SELECT u.id,u.email FROM kargo_sessions s JOIN kargo_users u ON u.id=s.user_id WHERE s.token_hash=${hash(token)} AND s.expires_at>now()`;
   return rows[0]||null;
 }
 
@@ -48,13 +47,6 @@ export async function authenticate(req,res,sql,input){
   const attemptKey=hash(`${req.method}:${req.url}:${ip}:${email}`);
   const attempts=await sql`INSERT INTO kargo_auth_attempts (attempt_key,attempts,window_start) VALUES (${attemptKey},1,now()) ON CONFLICT (attempt_key) DO UPDATE SET attempts=CASE WHEN kargo_auth_attempts.window_start<now()-interval '15 minutes' THEN 1 ELSE kargo_auth_attempts.attempts+1 END,window_start=CASE WHEN kargo_auth_attempts.window_start<now()-interval '15 minutes' THEN now() ELSE kargo_auth_attempts.window_start END RETURNING attempts`;
   if(attempts[0].attempts>8)throw Object.assign(new Error('Çok fazla deneme. 15 dakika sonra yeniden dene.'),{status:429});
-  if(input.register){
-    const salt=randomBytes(16).toString('hex'),derived=await scrypt(password,salt,64);
-    const id=randomBytes(20).toString('hex');
-    const users=await sql`INSERT INTO kargo_users (id,email,salt,password_hash) VALUES (${id},${email},${salt},${derived.toString('hex')}) ON CONFLICT (email) DO NOTHING RETURNING id,email`;
-    if(!users.length)throw Object.assign(new Error('Bu e-posta zaten kayıtlı. Giriş yap.'),{status:409});
-    return issueSession(res,sql,users[0]);
-  }
   const users=await sql`SELECT id,email,salt,password_hash FROM kargo_users WHERE email=${email}`;
   const user=users[0],derived=await scrypt(password,user?.salt||'00000000000000000000000000000000',64);
   if(!user||!timingSafeEqual(derived,Buffer.from(user.password_hash,'hex')))throw Object.assign(new Error('E-posta veya şifre hatalı.'),{status:401});
