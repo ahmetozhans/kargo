@@ -63,7 +63,7 @@ export default async function handler(req,res){
       const fields='routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline,routes.legs.duration,routes.legs.distanceMeters'+(optimize?',routes.optimizedIntermediateWaypointIndex':'');
       const data=await google('https://routes.googleapis.com/directions/v2:computeRoutes',{method:'POST',headers:{'Content-Type':'application/json','X-Goog-Api-Key':key,'X-Goog-FieldMask':fields},body:JSON.stringify(payload)});
       const route=data.routes?.[0];if(!route)return json(res,422,{message:'Bu duraklar için rota bulunamadı.'});
-      return json(res,200,{distanceMeters:route.distanceMeters,durationSeconds:Number((route.duration||'0s').replace('s','')),encodedPolyline:route.polyline?.encodedPolyline,legs:(route.legs||[]).map(l=>({distanceMeters:l.distanceMeters,durationSeconds:Number((l.duration||'0s').replace('s',''))})),order:optimize?[...(route.optimizedIntermediateWaypointIndex||[]),via.length]:null});
+      return json(res,200,{distanceMeters:route.distanceMeters,durationSeconds:Number((route.duration||'0s').replace('s','')),encodedPolyline:route.polyline?.encodedPolyline,legs:(route.legs||[]).map(l=>({distanceMeters:l.distanceMeters,durationSeconds:Number((l.duration||'0s').replace('s',''))})),order:optimize?[...(route.optimizedIntermediateWaypointIndex||[]),...(input.end?[]:[via.length])]:null});
     }
     return json(res,404,{message:'İşlem bulunamadı.'});
   }catch(e){return json(res,e.status||502,{code:e.status===429?'QUOTA':'API_ERROR',message:e.message||'Servis hatası'});}
