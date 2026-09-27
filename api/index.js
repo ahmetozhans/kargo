@@ -61,6 +61,7 @@ export default async function handler(req,res){
       if(!rows.length)return json(res,409,{code:'CONFLICT',message:'Başka cihazda yeni kayıt var. Önce eşitle.'});
       return json(res,200,{revision:rows[0].revision});
     }
+    if(!['search','geocode','place','route'].includes(endpoint))return json(res,404,{message:'İşlem bulunamadı.'});
     if(!await currentUser(req,await database()))return json(res,401,{message:'Giriş yapman gerekiyor.'});
     if(!key) return json(res,503,{code:'DEMO_MODE',message:'Google anahtarı ayarlı değil; demo rotası kullanılabilir.'});
     if(endpoint==='search' && req.method==='GET'){

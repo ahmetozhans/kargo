@@ -35,3 +35,11 @@ test('public registration endpoint rejects requests before accessing the databas
   assert.equal(status,403);
   assert.equal(payload.code,'REGISTRATION_CLOSED');
 });
+
+test('removed Apple endpoint is unavailable',async()=>{
+  const req={url:'/api/apple/start',method:'GET',headers:{host:'kargo-six.vercel.app'}};
+  let status;
+  const res={writeHead:code=>{status=code;return res},end:()=>res};
+  await handler(req,res);
+  assert.equal(status,404);
+});
