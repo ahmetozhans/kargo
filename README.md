@@ -14,6 +14,8 @@ node --env-file=.env server.js
 
 `http://localhost:3000` adresini açın. Google anahtarı olmadan demo çalışır. **Örnek rota yükle** ile dört Bursa durağı, şematik harita ve tüm teslimat akışı denenebilir. Demo haritası gerçek sokak/yol ve mesafe göstermediğini açıkça belirtir. Rotalar ve teslimat durumları `localStorage` ile aynı tarayıcıda saklanır; sunucuya veya başka cihaza eşitlenmez. Tarayıcı verilerinin silinmesi kayıtları siler. Ayarlardaki JSON dışa aktarımı yedek almak içindir.
 
+Hızlı kullanım: ana sayfada **işletme veya fabrika adını** yazın, önerilerdeki doğru konumu seçin. Durak otomatik olarak bugünkü rotaya eklenir. Aramayı tekrarlayarak diğer işletmeleri ekleyin ve **Rotayı aç** düğmesine basın. Alıcı ve paket ayrıntıları sonradan düzenlenebilir. Demo modunda yalnız dört örnek Bursa işletmesi aranabilir; Google anahtarlarıyla canlı işletme araması açılır.
+
 Vercel: GitHub deposunu Vercel'e bağlayın; framework ayarı `Other`, kök dizin `.`. `public/` statik dosyaları ve `api/index.js` sunucu işlevini yayınlayın. Environment Variables alanına `GOOGLE_MAPS_BROWSER_KEY`, `GOOGLE_MAPS_SERVER_KEY` ve diğer ayarları ekleyip yeniden deploy edin. HTTPS gereklidir; yerel `localhost` istisnadır. Vercel'de serverless işlevler arasında günlük sayaç ortak değildir: **kesin maliyet sınırı için Google Cloud API kotalarını ayrıca ayarlayın**.
 
 ## Google Cloud kurulumu
