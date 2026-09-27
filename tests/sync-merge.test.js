@@ -23,7 +23,16 @@ test('an unsynced local delivery remains delivered during conflict recovery',()=
 });
 
 test('a blank new cloud does not erase locally entered records',()=>{
-  const local={routes:[{id:'r',stops:[{id:'s',status:'pending'}]}],addressBook:[{id:'a',address:'Bursa'}],activeId:'r'};
+  const local={routes:[{id:'r',stops:[{id:'s',status:'pending'}]}],addressBook:[{id:'a',address:'Bursa'}],activeId:'r',returnAddress:null};
   assert.equal(hasLocalOnly(null,local),true);
   assert.deepEqual(mergeSnapshots(null,local),local);
+});
+
+test('shared return address survives recovery and an intentional removal stays removed',()=>{
+  const location={address:'Depo, Bursa',lat:40.2,lng:29.1};
+  const cloud={routes:[],addressBook:[],activeId:null,returnAddress:location};
+  const local={routes:[],addressBook:[],activeId:null,returnAddress:null};
+  assert.equal(mergeSnapshots(cloud,local).returnAddress,location);
+  assert.equal(mergeSnapshots(cloud,local,{preferLocal:true}).returnAddress,null);
+  assert.equal(hasLocalOnly({...cloud,returnAddress:null},{...local,returnAddress:location}),true);
 });

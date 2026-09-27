@@ -4,16 +4,25 @@ import {estimateLocally} from '../public/route-timing.js';
 
 test('signed-in delivery route shows next stop, controls, sorting, and map',async()=>{
   const app={innerHTML:''};
+  const toast={textContent:'',classList:{add(){},remove(){}}};
   let scrolls=0;
   const values=new Map();
   const events={};
   const route={id:'r',title:'27 Eylül dağıtımı',createdAt:new Date().toISOString(),start:{address:'Bursa merkez',lat:40.195,lng:29.06},end:null,stops:[{id:'s1',company:'Sawinmak',address:'Yücel Cd, Bursa',lat:40.2,lng:29.07,status:'pending',count:1},{id:'s2',company:'Penmak',address:'Kuleler Cd, Bursa',lat:40.21,lng:29.08,status:'pending',count:2}]};
+  const finished={id:'finished',title:'Eski rota',createdAt:new Date().toISOString(),finishedAt:new Date().toISOString(),start:{address:'Bursa merkez',lat:40.195,lng:29.06},end:{address:'Eski depo',lat:40.18,lng:29.04},stops:[]};
+  const cloudWrites=[];
   estimateLocally(route);
   globalThis.localStorage={getItem:key=>values.get(key)||null,setItem:(key,value)=>values.set(key,String(value)),removeItem:key=>values.delete(key)};
   const fields={'#route-title':{value:'Yeni Bursa rotası'},'#start-address':{value:'Bursa merkez'},'#end-address':{value:''}};
-  globalThis.document={querySelector:selector=>selector==='#app'?app:fields[selector]||null,addEventListener:(type,handler)=>{(events[type]??=[]).push(handler)}};
+  globalThis.document={querySelector:selector=>selector==='#app'?app:selector==='#toast'?toast:fields[selector]||null,addEventListener:(type,handler)=>{(events[type]??=[]).push(handler)}};
   globalThis.window={scrollTo:()=>{scrolls++},addEventListener:()=>{}};
-  globalThis.fetch=async url=>({ok:true,json:async()=>url==='/api/config'?{mode:'demo',syncEnabled:true}:url==='/api/session'?{user:{id:'owner',email:'owner@example.com'}}:{revision:1,data:{routes:[route],addressBook:[],activeId:'r'}}});
+  globalThis.fetch=async(url,options={})=>{
+    if(url==='/api/sync'&&options.method==='PUT')cloudWrites.push(JSON.parse(options.body).data);
+    const result=url==='/api/config'?{mode:'demo',syncEnabled:true}
+      :url==='/api/session'?{user:{id:'owner',email:'owner@example.com'}}
+      :{revision:1,data:{routes:[route,finished],addressBook:[],activeId:'r'}};
+    return {ok:true,json:async()=>result};
+  };
   const interval=globalThis.setInterval;
   globalThis.setInterval=()=>0;
   try{
@@ -39,7 +48,7 @@ test('signed-in delivery route shows next stop, controls, sorting, and map',asyn
     assert.match(app.innerHTML,/Rota adı/);
     await click('save-route');
     const saved=JSON.parse(values.get('kargo.routes.v1'));
-    assert.equal(saved.routes.length,2);
+    assert.equal(saved.routes.length,3);
     assert.equal(saved.routes.find(x=>x.id==='r').stops.length,2);
     assert.equal(saved.routes.find(x=>x.id==='r').stops[0].status,'pending');
     assert.notEqual(saved.activeId,'r');
@@ -48,5 +57,27 @@ test('signed-in delivery route shows next stop, controls, sorting, and map',asyn
     await click('switch-route',{id:'r'});
     assert.equal(JSON.parse(values.get('kargo.routes.v1')).activeId,'r');
     assert.match(app.innerHTML,/Sawinmak/);
-  }finally{globalThis.setInterval=interval}
+    await click('screen',{screen:'settings'});
+    fields['#return-address']={value:'Bursa merkez'};
+    await click('save-return');
+    const withReturn=JSON.parse(values.get('kargo.routes.v1'));
+    assert.equal(withReturn.returnAddress.address,'Bursa merkez');
+    assert.ok(withReturn.routes.filter(x=>!x.finishedAt).every(x=>x.end?.address==='Bursa merkez'));
+    assert.equal(withReturn.routes.find(x=>x.id==='finished').end.address,'Eski depo');
+    assert.equal(withReturn.routes.find(x=>x.id==='r').stops[0].status,'pending');
+    await click('new');
+    assert.match(app.innerHTML,/ORTAK DÖNÜŞ ADRESİ/);
+    await click('save-route');
+    const third=JSON.parse(values.get('kargo.routes.v1'));
+    assert.equal(third.routes.length,4);
+    assert.equal(third.routes.at(-1).end.address,'Bursa merkez');
+    globalThis.confirm=()=>true;
+    await click('finish');
+    await click('screen',{screen:'home'});
+    await click('quick-address');
+    const quick=JSON.parse(values.get('kargo.routes.v1'));
+    assert.equal(quick.routes.at(-1).end.address,'Bursa merkez');
+    await new Promise(resolve=>setTimeout(resolve,700));
+    assert.equal(cloudWrites.at(-1).returnAddress.address,'Bursa merkez');
+  }finally{globalThis.setInterval=interval;clearTimeout(globalThis.window.toastTimer)}
 });
