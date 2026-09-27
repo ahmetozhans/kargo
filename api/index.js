@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import {database, currentUser, authenticate, endSession, checkOrigin} from './auth.js';
+import {appleEnabled, startApple, finishApple} from './apple.js';
 const BURSA = { latitude: 40.195, longitude: 29.06 };
 const limits = new Map();
 const json = (res, status, data) => res.writeHead(status, {'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'}).end(JSON.stringify(data));
@@ -29,8 +30,14 @@ export default async function handler(req,res){
   const endpoint=(url.searchParams.get('endpoint')||url.pathname.replace(/^\/api\//,'')).replace(/\/$/,'');
   const key=process.env.GOOGLE_MAPS_SERVER_KEY;
   try{
-    if(!checkOrigin(req))return json(res,403,{message:'İstek kaynağı doğrulanamadı.'});
-    if(endpoint==='config' && req.method==='GET') return json(res,200,{mode:key?'live':'demo',browserKey:key?(process.env.GOOGLE_MAPS_BROWSER_KEY||''):'' ,optimizationEnabled:process.env.ENABLE_GOOGLE_OPTIMIZATION==='1',syncEnabled:Boolean(process.env.DATABASE_URL)});
+    const appleCallback=endpoint==='apple/callback'&&req.method==='POST'&&String(req.headers['content-type']||'').toLowerCase().startsWith('application/x-www-form-urlencoded');
+    if(!appleCallback&&!checkOrigin(req))return json(res,403,{message:'İstek kaynağı doğrulanamadı.'});
+    if(endpoint==='config' && req.method==='GET') return json(res,200,{mode:key?'live':'demo',browserKey:key?(process.env.GOOGLE_MAPS_BROWSER_KEY||''):'' ,optimizationEnabled:process.env.ENABLE_GOOGLE_OPTIMIZATION==='1',syncEnabled:Boolean(process.env.DATABASE_URL),appleEnabled:appleEnabled()});
+    if(endpoint==='apple/start'&&req.method==='GET'||appleCallback){
+      if(!process.env.DATABASE_URL)return json(res,503,{message:'Veritabanı bağlı değil.'});
+      const sql=await database();
+      return appleCallback?finishApple(req,res,sql):startApple(req,res,sql,url);
+    }
     if(['session','login','register','logout'].includes(endpoint)){
       if(!process.env.DATABASE_URL)return json(res,503,{message:'Veritabanı bağlı değil. Giriş yapılamıyor.'});
       const sql=await database();

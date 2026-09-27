@@ -13,6 +13,7 @@ export async function database(){
   await sql`CREATE TABLE IF NOT EXISTS kargo_users (id text PRIMARY KEY, email text UNIQUE NOT NULL, salt text NOT NULL, password_hash text NOT NULL, created_at timestamptz NOT NULL DEFAULT now())`;
   await sql`CREATE TABLE IF NOT EXISTS kargo_sessions (token_hash text PRIMARY KEY, user_id text NOT NULL REFERENCES kargo_users(id) ON DELETE CASCADE, expires_at timestamptz NOT NULL)`;
   await sql`CREATE TABLE IF NOT EXISTS kargo_auth_attempts (attempt_key text PRIMARY KEY, attempts integer NOT NULL, window_start timestamptz NOT NULL)`;
+  await sql`CREATE TABLE IF NOT EXISTS kargo_apple_identities (apple_sub text PRIMARY KEY, user_id text NOT NULL REFERENCES kargo_users(id) ON DELETE CASCADE)`;
   return sql;
 }
 
@@ -27,13 +28,13 @@ export async function currentUser(req,sql){
   const cookie=(req.headers.cookie||'').split(';').map(x=>x.trim()).find(x=>x.startsWith(cookieName+'='));
   const token=cookie?.slice(cookieName.length+1);
   if(!token||!/^[a-f0-9]{64}$/.test(token))return null;
-  const rows=await sql`SELECT u.id,u.email FROM kargo_sessions s JOIN kargo_users u ON u.id=s.user_id WHERE s.token_hash=${hash(token)} AND s.expires_at>now()`;
+  const rows=await sql`SELECT u.id,u.email,EXISTS(SELECT 1 FROM kargo_apple_identities i WHERE i.user_id=u.id) AS apple_linked FROM kargo_sessions s JOIN kargo_users u ON u.id=s.user_id WHERE s.token_hash=${hash(token)} AND s.expires_at>now()`;
   return rows[0]||null;
 }
 
 export function clearSession(res){res.setHeader('Set-Cookie',`${cookieName}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`)}
 
-async function issueSession(res,sql,user){
+export async function issueSession(res,sql,user){
   const token=randomBytes(32).toString('hex');
   await sql`INSERT INTO kargo_sessions (token_hash,user_id,expires_at) VALUES (${hash(token)},${user.id},${new Date(Date.now()+days).toISOString()})`;
   res.setHeader('Set-Cookie',`${cookieName}=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${days/1000}`);
