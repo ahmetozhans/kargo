@@ -78,13 +78,20 @@ export default async function handler(req,res){
       if(optimize&&process.env.ENABLE_GOOGLE_OPTIMIZATION!=='1')return json(res,403,{code:'OPT_DISABLED',message:'Google Pro optimizasyonu kapalı. Durakları elle sıralayabilirsiniz.'});
       if(optimize&&stops.length<2)return json(res,400,{message:'Optimizasyon için en az iki durak gereklidir.'});
       if(!allow(optimize?'optimize':'route',Number(process.env[optimize?'DAILY_OPTIMIZE_LIMIT':'DAILY_ROUTES_LIMIT'])||(optimize?5:30)))return json(res,429,{code:'QUOTA',message:'Günlük rota kotası doldu. Durakları elle sıralayabilirsiniz.'});
-      const destination=input.end||stops.at(-1);
-      const via=input.end?stops:stops.slice(0,-1);
+      // An open route still needs one fixed destination for Compute Routes.
+      // Pick the farthest stop as its likely finish so every other stop can be reordered.
+      const endpointIndex=optimize&&!input.end?stops.reduce((best,stop,i)=>{
+        const measure=p=>{const lat=(+p.lat-+input.start.lat)*111000;const lng=(+p.lng-+input.start.lng)*85000;return lat*lat+lng*lng};
+        return measure(stop)>measure(stops[best])?i:best;
+      },0):stops.length-1;
+      const destination=input.end||stops[endpointIndex];
+      const viaIndices=stops.map((_,i)=>i).filter(i=>Boolean(input.end)||i!==endpointIndex);
+      const via=viaIndices.map(i=>stops[i]);
       const payload={origin:point(input.start),destination:point(destination),intermediates:via.map(point),travelMode:'DRIVE',routingPreference:'TRAFFIC_UNAWARE',computeAlternativeRoutes:false,languageCode:'tr-TR',units:'METRIC',optimizeWaypointOrder:optimize};
       const fields='routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline,routes.legs.duration,routes.legs.distanceMeters'+(optimize?',routes.optimizedIntermediateWaypointIndex':'');
       const data=await google('https://routes.googleapis.com/directions/v2:computeRoutes',{method:'POST',headers:{'Content-Type':'application/json','X-Goog-Api-Key':key,'X-Goog-FieldMask':fields},body:JSON.stringify(payload)});
       const route=data.routes?.[0];if(!route)return json(res,422,{message:'Bu duraklar için rota bulunamadı.'});
-      return json(res,200,{distanceMeters:route.distanceMeters,durationSeconds:Number((route.duration||'0s').replace('s','')),encodedPolyline:route.polyline?.encodedPolyline,legs:(route.legs||[]).map(l=>({distanceMeters:l.distanceMeters,durationSeconds:Number((l.duration||'0s').replace('s',''))})),order:optimize?[...(route.optimizedIntermediateWaypointIndex||[]),...(input.end?[]:[via.length])]:null});
+      return json(res,200,{distanceMeters:route.distanceMeters,durationSeconds:Number((route.duration||'0s').replace('s','')),encodedPolyline:route.polyline?.encodedPolyline,legs:(route.legs||[]).map(l=>({distanceMeters:l.distanceMeters,durationSeconds:Number((l.duration||'0s').replace('s',''))})),order:optimize?[...(route.optimizedIntermediateWaypointIndex||[]).map(i=>viaIndices[i]),...(input.end?[]:[endpointIndex])]:null});
     }
     return json(res,404,{message:'İşlem bulunamadı.'});
   }catch(e){return json(res,e.status||502,{code:e.status===429?'QUOTA':'API_ERROR',message:e.message||'Servis hatası'});}
