@@ -46,7 +46,7 @@ Google'ın [küresel fiyat sayfası](https://developers.google.com/maps/billing-
 
 - Adres önerileri 420 ms bekleme ve en az üç karakterle başlar. Firma eşleşmeleri Bursa demo kayıtlarında yerel aranır. Google API açıkken Bursa çevresine öncelikli arama yapılır; bir öneriyi seçmek, yer ayrıntılarını sunucudan getirir.
 - Çok satırlı ekleme en fazla 10 adresi tek tek doğrular. Bulunamayanları kullanıcıya bildirir, başarılı olanları kaydeder. Gerçek rota yalnız **Rotayı hesapla** düğmesinde hesaplanır. Liste değişince önceki mesafe/varış tahminleri temizlenir.
-- Saat aralığı ve öncelik kayıt edilir ve ekranda görünür; bu ilk sürüm Google'ın saat aralığına bağlı optimizasyonunu yapmaz. **Kargo’da takip et** site içindeki Google haritasında GPS konumunu ve hesaplanan yolu izler; başlangıçta/durak değişiminde bir Routes isteği gönderir, GPS hareketlerinde yeniden istek göndermez. Yol yanıtı beklenirken veya hata verdiğinde yalnızca açıkça etiketlenmiş yaklaşık süreyi gösterir. Google Maps bağlantısı isteğe bağlıdır.
+- Saat aralığı ve öncelik kayıt edilir ve ekranda görünür; bu ilk sürüm Google'ın saat aralığına bağlı optimizasyonunu yapmaz. **Navigasyonu aç** doğrudan Google Maps yönlendirme bağlantısını açar; iPhone'da uygulama yüklüyse uygulamaya geçer, yüklü değilse tarayıcıdaki Google Maps'e gider. Site içi GPS takibi ve bu amaçla yapılan ilave Routes isteği kaldırılmıştır.
 - Durumlar: bekliyor, teslim edildi, teslim edilemedi (neden zorunlu), atlandı. Rota bitince geçmişe taşınır. Bitmiş rota yeniden açılırsa içerik görüntülenebilir.
 
 ## Cihazlar arası kayıt

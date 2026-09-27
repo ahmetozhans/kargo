@@ -24,6 +24,8 @@ test('signed-in delivery route shows next stop, controls, sorting, and map',asyn
     await click('screen',{screen:'route'});
     assert.match(app.innerHTML,/SIRADAKİ DURAK/);
     assert.match(app.innerHTML,/Sawinmak/);
+    assert.match(app.innerHTML,/<a class="primary maps-link" href="https:\/\/www\.google\.com\/maps\/dir\/\?api=1&amp;destination=40\.2%2C29\.07[^\"]*"[^>]*>Navigasyonu aç ↗<\/a>/);
+    assert.doesNotMatch(app.innerHTML,/data-action="navigate(?:-next)?"|CANLI ROTA TAKİBİ/);
     assert.match(app.innerHTML,/Rotayı optimize et/);
     assert.match(app.innerHTML,/data-action="toggle-sort"/);
     assert.doesNotMatch(app.innerHTML,/data-action="move"/);
