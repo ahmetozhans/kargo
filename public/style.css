@@ -107,6 +107,11 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 [hidden]{display:none!important}
 .map{height:330px;border-radius:17px;overflow:hidden;background:#e1e9f0;position:relative}.map.demo{background:linear-gradient(32deg,transparent 44%,#f6faf8 44% 47%,transparent 47%),linear-gradient(145deg,transparent 31%,#f6faf8 31% 34%,transparent 34%),#dbe8e9}.demo-roads{position:absolute;inset:0;width:100%;height:100%}.maplabel{position:absolute;z-index:2;top:12px;left:12px;right:12px;background:white;padding:8px;border-radius:10px;font-size:10px;color:#67768c}.map button.map-pin{position:absolute;z-index:2;transform:translate(-50%,-50%);border:2px solid white;width:34px;height:34px;border-radius:50%;background:var(--blue);color:white;font-weight:850;box-shadow:0 3px 10px #172b5d4d}.map button.map-pin.selected{background:#1a244e;transform:translate(-50%,-50%) scale(1.2)}.map button.map-pin.completed{background:#279567}.map-empty{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:24px;font-size:13px;color:#647993}.map-distance{font-size:12px;color:var(--sub);text-align:center}
 .map-return-pin{position:absolute;z-index:3;transform:translate(-50%,-50%);width:35px;height:35px;border:2px solid #fff;border-radius:50%;display:grid;place-items:center;background:#d47623;color:#fff;font-weight:850;box-shadow:0 3px 10px #172b5d4d}
+.screen-route .return-stop{border-color:#f0d8b7;background:#fffaf3;opacity:1}
+.screen-route .return-stop .number{background:#ffe6ca;color:#955416}
+.screen-route .return-stop.selected{border-color:#d78c40;box-shadow:0 0 0 2px #d78c4022}
+.screen-route .return-detail{border-color:#f0d8b7}
+.map button.map-return-pin{cursor:pointer}
 .return-preview,.return-current{display:grid;gap:7px;border:1px solid #dce5ff;border-radius:13px;background:#f2f5ff;padding:13px}
 .return-preview strong,.return-current strong{font-size:13px;line-height:1.4;overflow-wrap:anywhere}
 .return-preview small{font-size:11px;color:var(--sub)}
@@ -151,9 +156,6 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 .screen-route .timing-strip{margin:0 0 14px;padding:10px 13px;border-radius:12px;gap:2px}
 .screen-route .timing-strip strong{font-size:13px}
 .screen-route .timing-strip span{font-size:10px}
-.screen-route .return-note{display:grid;gap:3px;margin:0 0 14px;padding:10px 13px;border-radius:12px;background:#fff7ed;border:1px solid #f6e1c3}
-.screen-route .return-note span{font-size:10px;font-weight:800;color:#a16a34;letter-spacing:.04em}
-.screen-route .return-note strong{font-size:12px;line-height:1.4;color:#49331c;overflow-wrap:anywhere}
 .screen-route .route-add{padding:12px;margin-bottom:15px;border-radius:15px}
 .screen-route .route-add .quickbox{margin-top:8px;padding:7px 12px}
 .screen-route .route-add .quickbox label{font-size:10px}

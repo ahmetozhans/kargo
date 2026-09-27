@@ -63,6 +63,28 @@ test('a route with an end point includes the final return leg', () => {
   assert.equal(route.durationSeconds,2400);
 });
 
+test('after the final delivery, the return remains the last destination with an arrival time',()=>{
+  const route=makeRoute();
+  route.stops=route.stops.slice(0,1);
+  route.end={lat:40.2,lng:29.04,address:'Nilüfer Ticaret Merkezi'};
+  setTiming(route,[legs[0],{durationSeconds:360,distanceMeters:2000}],'google',at);
+  route.stops[0].status='delivered';
+  assert.equal(advanceTiming(route,'a','a',at+600_000),null);
+  const summary=timingSummary(route,at+600_000);
+  assert.equal(summary.finishAt,at+960_000);
+  assert.equal(route.durationSeconds,360);
+  assert.equal(route.timingSource,'google');
+});
+
+test('existing completed deliveries can estimate their return without a new Google request',()=>{
+  const route=makeRoute();
+  route.stops[0].status='delivered';
+  route.stops=route.stops.slice(0,1);
+  route.end={lat:40.2,lng:29.04};
+  assert.equal(estimateLocally(route,at),true);
+  assert.ok(timingSummary(route,at).finishAt>at);
+});
+
 test('new or reordered stops show a local time immediately while old road geometry is removed',()=>{
   const route=makeRoute();
   setTiming(route,legs,'google',at);

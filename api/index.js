@@ -114,7 +114,7 @@ export default async function handler(req,res){
     if(endpoint==='route' && req.method==='POST'){
       const input=await body(req), optimize=input.optimize===true;
       const stops=input.stops||[];
-      if(!coord(input.start)||!Array.isArray(stops)||stops.length<1||stops.length>25||!stops.every(coord)||input.end&&!coord(input.end))return json(res,400,{message:'Başlangıç ve 1–25 geçerli durak gereklidir.'});
+      if(!coord(input.start)||!Array.isArray(stops)||stops.length>25||!stops.length&&!input.end||!stops.every(coord)||input.end&&!coord(input.end))return json(res,400,{message:'Başlangıç ve geçerli durak veya dönüş noktası gereklidir.'});
       if(optimize&&process.env.ENABLE_GOOGLE_OPTIMIZATION!=='1')return json(res,403,{code:'OPT_DISABLED',message:'Google Pro optimizasyonu kapalı. Durakları elle sıralayabilirsiniz.'});
       if(optimize&&stops.length<2)return json(res,400,{message:'Optimizasyon için en az iki durak gereklidir.'});
       if(!allow(optimize?'optimize':'route',Number(process.env[optimize?'DAILY_OPTIMIZE_LIMIT':'DAILY_ROUTES_LIMIT'])||(optimize?5:30)))return json(res,429,{code:'QUOTA',message:'Günlük rota kotası doldu. Durakları elle sıralayabilirsiniz.'});

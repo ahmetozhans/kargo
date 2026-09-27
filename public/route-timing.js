@@ -38,7 +38,7 @@ export function estimateLocally(route, at = Date.now()) {
   const stops = remaining(route);
   const start = route.stops.filter(stop => stop.status !== 'pending').at(-1) || route.start;
   const valid = point => point && point.lat != null && point.lng != null && Number.isFinite(Number(point.lat)) && Number.isFinite(Number(point.lng));
-  if (!stops.length || !valid(start) || stops.some(stop => !valid(stop)) || route.end && !valid(route.end)) return false;
+  if ((!stops.length && !route.end) || !valid(start) || stops.some(stop => !valid(stop)) || route.end && !valid(route.end)) return false;
   setTiming(route, demoLegs(route), 'local', at);
   return true;
 }
@@ -67,7 +67,7 @@ export function setTiming(route, legs, source, at = Date.now()) {
 export function timingSummary(route, now = Date.now()) {
   const stops = remaining(route);
   const anchor = Date.parse(route.timingAnchorAt);
-  if (!Number.isFinite(anchor) || !stops.length || stops.some(stop => !Number.isFinite(stop.legSeconds))) return null;
+  if (!Number.isFinite(anchor) || !stops.length && !route.end || stops.some(stop => !Number.isFinite(stop.legSeconds))) return null;
   let elapsed = 0;
   const arrivals = new Map();
   for (const stop of stops) {
@@ -81,7 +81,10 @@ export function timingSummary(route, now = Date.now()) {
 export function advanceTiming(route, firstPendingId, completedId, at = Date.now()) {
   const next = remaining(route)[0];
   if (!next) {
-    clearTiming(route);
+    if (route.end && firstPendingId === completedId && Number.isFinite(route.endLegSeconds) && Number.isFinite(route.endLegMeters))
+      setTiming(route,[{durationSeconds:route.endLegSeconds,distanceMeters:route.endLegMeters}],route.timingSource||'local',at);
+    else if (route.end) estimateLocally(route,at);
+    else clearTiming(route);
     return null;
   }
   if (firstPendingId !== completedId || !route.timingAnchorAt ||
