@@ -47,3 +47,9 @@ Google'ın [küresel fiyat sayfası](https://developers.google.com/maps/billing-
 - Çok satırlı ekleme en fazla 10 adresi tek tek doğrular. Bulunamayanları kullanıcıya bildirir, başarılı olanları kaydeder. Gerçek rota yalnız **Rotayı hesapla** düğmesinde hesaplanır. Liste değişince önceki mesafe/varış tahminleri temizlenir.
 - Saat aralığı ve öncelik kayıt edilir ve ekranda görünür; bu ilk sürüm Google'ın saat aralığına bağlı optimizasyonunu yapmaz. Navigasyon Google Maps'i seçili durağın koordinatlarıyla açar.
 - Durumlar: bekliyor, teslim edildi, teslim edilemedi (neden zorunlu), atlandı. Rota bitince geçmişe taşınır. Bitmiş rota yeniden açılırsa içerik görüntülenebilir.
+
+## Cihazlar arası kayıt
+
+Vercel projesinde Storage → Neon Postgres veritabanı oluşturup Production ortamına `DATABASE_URL` değişkenini bağlayın, ardından yeniden deploy edin. Proje bu değişkenle açılınca rotalar ve adres deposu veritabanında saklanır. Ayarlar → **Eşitleme kodunu göster** ile uzun kodu güvenli şekilde alın; diğer cihazda Ayarlar → **Bu kodla bağlan** alanına yapıştırın. Kod hesaba erişim anahtarıdır; başkalarıyla paylaşmayın. Aynı rota iki cihazda aynı anda değiştirilirse sunucu çakışan yazımı reddeder; Ayarlar → **Şimdi eşitle** ile son sunucu sürümünü yükleyin. Veritabanı bağlantısı kesilirse cihazdaki kayıtlar kalır; bağlantı dönünce eşitleyin. Sunucuda yalnızca kodun SHA-256 özeti saklanır. İlk eşitleme mevcut cihaz kayıtlarını da yükler. Veritabanı bağlı değilken uygulama durumunu açıkça bildirir ve cihazlar arası eşitleme yapmaz.
+
+Google Places ve Geocoding verilerinden yalnızca yer kimliği uzun süre saklanabilir. Depoda Google koordinatları 29 gün sonra yeniden doğrulanır; kullanıcı girip onayladığı firma, telefon, teslimat notları kendi kayıtlarıdır. Kayıtlı işletmeler hızlı arama sonucunda önce gösterilir, eşleşme varsa kullanıcı Google aramasını ayrıca seçmedikçe Autocomplete isteği gönderilmez.
