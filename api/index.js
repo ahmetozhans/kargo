@@ -50,15 +50,23 @@ export default async function handler(req,res){
       if(endpoint==='login'&&req.method==='POST')return json(res,200,{user:await authenticate(req,res,sql,await body(req))});
       return json(res,405,{message:'Bu işlem desteklenmiyor.'});
     }
-    if(endpoint==='sync' && ['GET','PUT'].includes(req.method)){
+    if((endpoint==='sync'||endpoint==='sync-history') && ['GET','PUT'].includes(req.method)){
       if(!process.env.DATABASE_URL)return json(res,503,{code:'SYNC_DISABLED',message:'Kalıcı veritabanı henüz bağlı değil.'});
       const sql=await database();
       const user=await currentUser(req,sql);
       const token=String(req.headers.authorization||'').replace(/^Bearer /i,'');
-      if(!user&&!(req.method==='GET'&&/^[A-Za-z0-9_-]{40,100}$/.test(token)))return json(res,401,{message:'Giriş yapman gerekiyor.'});
+      if(!user&&!(endpoint==='sync'&&req.method==='GET'&&/^[A-Za-z0-9_-]{40,100}$/.test(token)))return json(res,401,{message:'Giriş yapman gerekiyor.'});
       const legacyRead=req.method==='GET'&&/^[A-Za-z0-9_-]{40,100}$/.test(token);
       const account=legacyRead?createHash('sha256').update(token).digest('hex'):'user:'+user.id;
       await sql`CREATE TABLE IF NOT EXISTS kargo_accounts (account_id text PRIMARY KEY, payload jsonb NOT NULL DEFAULT '{}'::jsonb, revision integer NOT NULL DEFAULT 0, updated_at timestamptz NOT NULL DEFAULT now())`;
+      if(endpoint==='sync-history'){
+        if(req.method!=='GET')return json(res,405,{message:'Bu işlem desteklenmiyor.'});
+        await sql`CREATE TABLE IF NOT EXISTS kargo_account_history (account_id text NOT NULL, revision integer NOT NULL, payload jsonb NOT NULL, saved_at timestamptz NOT NULL DEFAULT now(), PRIMARY KEY(account_id,revision))`;
+        const selected=url.searchParams.get('revision');
+        if(selected!==null){const revision=Number(selected);if(!Number.isInteger(revision)||revision<0)return json(res,400,{message:'Geçersiz sürüm.'});const rows=await sql`SELECT payload FROM kargo_account_history WHERE account_id=${account} AND revision=${revision}`;return rows.length?json(res,200,{data:rows[0].payload,revision}):json(res,404,{message:'Yedek bulunamadı.'})}
+        const rows=await sql`SELECT revision,saved_at FROM kargo_account_history WHERE account_id=${account} ORDER BY revision DESC LIMIT 30`;
+        return json(res,200,{history:rows});
+      }
       if(req.method==='GET'){
         const rows=await sql`SELECT payload, revision FROM kargo_accounts WHERE account_id=${account}`;
         return json(res,200,{data:rows[0]?.payload||null,revision:rows[0]?.revision||0});
@@ -67,6 +75,8 @@ export default async function handler(req,res){
       if(!data||!Array.isArray(data.routes)||!Array.isArray(data.addressBook)||data.routes.length>300||data.addressBook.length>3000||JSON.stringify(data).length>500000)return json(res,400,{message:'Kayıt boyutu veya biçimi geçersiz.'});
       const revision=Number(input.revision);
       if(!Number.isInteger(revision)||revision<0)return json(res,400,{message:'Geçersiz sürüm.'});
+      await sql`CREATE TABLE IF NOT EXISTS kargo_account_history (account_id text NOT NULL, revision integer NOT NULL, payload jsonb NOT NULL, saved_at timestamptz NOT NULL DEFAULT now(), PRIMARY KEY(account_id,revision))`;
+      await sql`INSERT INTO kargo_account_history(account_id,revision,payload) SELECT account_id,revision,payload FROM kargo_accounts WHERE account_id=${account} AND revision=${revision} ON CONFLICT DO NOTHING`;
       const rows=await sql`INSERT INTO kargo_accounts (account_id,payload,revision) VALUES (${account},${JSON.stringify(data)}::jsonb,1) ON CONFLICT (account_id) DO UPDATE SET payload=EXCLUDED.payload,revision=kargo_accounts.revision+1,updated_at=now() WHERE kargo_accounts.revision=${revision} RETURNING revision`;
       if(!rows.length)return json(res,409,{code:'CONFLICT',message:'Başka cihazda yeni kayıt var. Önce eşitle.'});
       return json(res,200,{revision:rows[0].revision});
