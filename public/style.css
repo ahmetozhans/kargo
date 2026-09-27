@@ -111,3 +111,4 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 .auth-path{display:flex;align-items:center;gap:8px;margin-top:23px}.auth-path span{display:grid;place-items:center;width:29px;height:29px;border-radius:9px;background:#ffffff1b;color:#dbe3ff}.auth-path i{width:38px;height:1px;background:#ffffff43}
 .auth-card{padding:25px 22px 35px}
 .auth-card h2{font-size:25px;letter-spacing:-.05em;margin:0 0 4px}.auth-card>.muted{margin:0 0 18px}.auth-form{display:grid;gap:14px}.auth-form .primary{width:100%;min-height:50px;margin-top:3px;font-size:14px}.auth-foot{font-size:11px;color:#8c99ad;line-height:1.5;text-align:center;margin:17px 7px 0}
+.auth-switch{display:block;width:100%;min-height:44px;background:none;border:0;color:var(--blue);font-size:12px;font-weight:800;margin-top:10px}

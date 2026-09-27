@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {scrypt as scryptCallback} from 'node:crypto';
 import {promisify} from 'node:util';
-import {authenticate, checkOrigin} from '../api/auth.js';
+import {authenticate, setupOwner, checkOrigin} from '../api/auth.js';
 import handler from '../api/index.js';
 
 test('existing account sign-in uses a derived password and issues a secure cookie',async()=>{
@@ -42,4 +42,24 @@ test('removed Apple endpoint is unavailable',async()=>{
   const res={writeHead:code=>{status=code;return res},end:()=>res};
   await handler(req,res);
   assert.equal(status,404);
+});
+
+test('owner setup needs a private secret and succeeds only once',async()=>{
+  const old=process.env.KARGO_SETUP_SECRET;
+  process.env.KARGO_SETUP_SECRET='setup-test-token-that-is-longer-than-forty-characters';
+  let created=false,storedHash;
+  const sql=async(strings,...args)=>{
+    const query=strings.join('?');
+    if(query.includes('INSERT INTO kargo_users')){if(created)return [];created=true;storedHash=args[3];return [{id:'owner',email:args[1]}]}
+    if(query.includes('INSERT INTO kargo_sessions'))return [];
+    throw new Error('Unexpected SQL: '+query);
+  };
+  const res={setHeader:()=>{}};
+  try{
+    const input={email:'owner@example.com',password:'correct horse battery staple',setupSecret:process.env.KARGO_SETUP_SECRET};
+    await assert.rejects(setupOwner(res,sql,{...input,setupSecret:'wrong'}),{status:403});
+    assert.equal((await setupOwner(res,sql,input)).id,'owner');
+    assert.notEqual(storedHash,input.password);
+    await assert.rejects(setupOwner(res,sql,input),{status:409});
+  }finally{if(old===undefined)delete process.env.KARGO_SETUP_SECRET;else process.env.KARGO_SETUP_SECRET=old}
 });

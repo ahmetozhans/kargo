@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import {database, currentUser, authenticate, endSession, checkOrigin} from './auth.js';
+import {database, currentUser, authenticate, setupOwner, endSession, checkOrigin} from './auth.js';
 const BURSA = { latitude: 40.195, longitude: 29.06 };
 const limits = new Map();
 const json = (res, status, data) => res.writeHead(status, {'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'}).end(JSON.stringify(data));
@@ -30,11 +30,21 @@ export default async function handler(req,res){
   const key=process.env.GOOGLE_MAPS_SERVER_KEY;
   try{
     if(!checkOrigin(req))return json(res,403,{message:'İstek kaynağı doğrulanamadı.'});
-    if(endpoint==='config' && req.method==='GET') return json(res,200,{mode:key?'live':'demo',browserKey:key?(process.env.GOOGLE_MAPS_BROWSER_KEY||''):'' ,optimizationEnabled:process.env.ENABLE_GOOGLE_OPTIMIZATION==='1',syncEnabled:Boolean(process.env.DATABASE_URL)});
-    if(['session','login','register','logout'].includes(endpoint)){
+    if(endpoint==='config' && req.method==='GET'){
+      let ownerSetupAvailable=false;
+      if(process.env.DATABASE_URL&&process.env.KARGO_SETUP_SECRET?.length>=40){
+        const sql=await database();
+        const rows=await sql`SELECT EXISTS(SELECT 1 FROM kargo_users) AS has_user`;
+        ownerSetupAvailable=!rows[0].has_user;
+      }
+      return json(res,200,{mode:key?'live':'demo',browserKey:key?(process.env.GOOGLE_MAPS_BROWSER_KEY||''):'' ,optimizationEnabled:process.env.ENABLE_GOOGLE_OPTIMIZATION==='1',syncEnabled:Boolean(process.env.DATABASE_URL),ownerSetupAvailable});
+    }
+    if(['session','login','register','logout','setup-owner'].includes(endpoint)){
       if(endpoint==='register')return json(res,403,{code:'REGISTRATION_CLOSED',message:'Yeni hesap açma kapalı.'});
+      if(endpoint==='setup-owner'&&(!process.env.KARGO_SETUP_SECRET||process.env.KARGO_SETUP_SECRET.length<40))return json(res,404,{message:'Kurulum kapalı.'});
       if(!process.env.DATABASE_URL)return json(res,503,{message:'Veritabanı bağlı değil. Giriş yapılamıyor.'});
       const sql=await database();
+      if(endpoint==='setup-owner'&&req.method==='POST')return json(res,200,{user:await setupOwner(res,sql,await body(req))});
       if(endpoint==='session'&&req.method==='GET')return json(res,200,{user:await currentUser(req,sql)});
       if(endpoint==='logout'&&req.method==='POST'){await endSession(req,res,sql);return json(res,200,{ok:true})}
       if(endpoint==='login'&&req.method==='POST')return json(res,200,{user:await authenticate(req,res,sql,await body(req))});

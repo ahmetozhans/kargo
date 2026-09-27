@@ -53,6 +53,21 @@ export async function authenticate(req,res,sql,input){
   return issueSession(res,sql,user);
 }
 
+export async function setupOwner(res,sql,input){
+  const configured=process.env.KARGO_SETUP_SECRET||'';
+  const supplied=String(input.setupSecret||'');
+  if(configured.length<40||supplied.length>200||!timingSafeEqual(Buffer.from(hash(configured),'hex'),Buffer.from(hash(supplied),'hex')))
+    throw Object.assign(new Error('Kurulum anahtarı geçersiz.'),{status:403});
+  const email=String(input.email||'').trim().toLowerCase(),password=String(input.password||'');
+  if(!emailPattern.test(email)||email.length>254||password.length<12||password.length>128)
+    throw Object.assign(new Error('Geçerli e-posta ve en az 12 karakterli şifre gir.'),{status:400});
+  const salt=randomBytes(16).toString('hex');
+  const passwordHash=(await scrypt(password,salt,64)).toString('hex');
+  const users=await sql`INSERT INTO kargo_users (id,email,salt,password_hash) SELECT ${'owner'},${email},${salt},${passwordHash} WHERE NOT EXISTS (SELECT 1 FROM kargo_users) ON CONFLICT DO NOTHING RETURNING id,email`;
+  if(!users.length)throw Object.assign(new Error('İlk hesap zaten oluşturulmuş. Mevcut hesabınla giriş yap.'),{status:409});
+  return issueSession(res,sql,users[0]);
+}
+
 export async function endSession(req,res,sql){
   const cookie=(req.headers.cookie||'').split(';').map(x=>x.trim()).find(x=>x.startsWith(cookieName+'='));
   const token=cookie?.slice(cookieName.length+1);
