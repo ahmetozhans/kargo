@@ -4,15 +4,16 @@ Türkçe, mobil öncelikli kargo dağıtım planlayıcısı. Kaynak: [Spoke Rout
 
 ## Çalıştırma
 
-Node.js 20+ gerekir. Bağımlılık kurulumu yoktur.
+Node.js 20+ gerekir.
 
 ```sh
 cp .env.example .env
 # .env içindeki anahtarları isteğe göre doldurun
+npm install
 node --env-file=.env server.js
 ```
 
-`http://localhost:3000` adresini açın. Google anahtarı olmadan demo çalışır. **Örnek rota yükle** ile dört Bursa durağı, şematik harita ve tüm teslimat akışı denenebilir. Demo haritası gerçek sokak/yol ve mesafe göstermediğini açıkça belirtir. Rotalar ve teslimat durumları `localStorage` ile aynı tarayıcıda saklanır; sunucuya veya başka cihaza eşitlenmez. Tarayıcı verilerinin silinmesi kayıtları siler. Ayarlardaki JSON dışa aktarımı yedek almak içindir.
+`http://localhost:3000` adresini açın. Google anahtarı olmadan demo çalışır. **Örnek rota yükle** ile dört Bursa durağı, şematik harita ve tüm teslimat akışı denenebilir. Demo haritası gerçek sokak/yol ve mesafe göstermez. Neon veritabanı bağlıysa kayıtlar eşitleme koduyla cihazlar arasında paylaşılır; bağlantı yokken tarayıcıda tutulur. Ayarlardaki JSON dışa aktarımı yedek almak içindir.
 
 Hızlı kullanım: ana sayfada **işletme veya fabrika adını** yazın, önerilerdeki doğru konumu seçin. Durak otomatik olarak bugünkü rotaya eklenir. Aramayı tekrarlayarak diğer işletmeleri ekleyin ve **Rotayı aç** düğmesine basın. Alıcı ve paket ayrıntıları sonradan düzenlenebilir. Demo modunda yalnız dört örnek Bursa işletmesi aranabilir; Google anahtarlarıyla canlı işletme araması açılır.
 
@@ -39,7 +40,7 @@ Google'ın [küresel fiyat sayfası](https://developers.google.com/maps/billing-
 | Rota/mesafe | Routes: Compute Routes Essentials | 10.000 | $5 |
 | İsteğe bağlı Google sıralaması | Routes: Compute Routes Pro | 5.000 | $10 |
 
-`optimizeWaypointOrder` Pro ücretlendirmesine geçirebilir; [Google belgesi](https://developers.google.com/maps/documentation/routes/opt-way). Uygulama optimizasyonu varsayılan olarak kapalı tutar ve etkinleştirildiğinde her istek öncesinde onay ister. Kota dolarsa ücretli isteği tekrar denemez; elle sıralama devam eder. Uygulama Routes Matrix çağırmaz. Fiyat ve SKU'lar değişebilir; canlıya çıkarken fiyat sayfasını yeniden kontrol edin. Google'ın [coğrafi kodlama veri saklama politikası](https://developers.google.com/maps/documentation/geocoding/policies) ve Maps/Routes hizmet şartlarına uyun; kalıcı adres ve koordinat saklama iş modeliniz için hukuki/politika incelemesi gerektirir. Bu ilk sürümün `localStorage` kayıtları da kullanım öncesi bu şartlar açısından değerlendirilmeli; gerekirse yalnız kullanıcı adresini ve izin verilen place ID'lerini saklayacak şekilde değiştirin.
+**Rotayı optimize et** cihazda konumlar arasındaki yaklaşık kuş uçuşu mesafeyi azaltır. İki aşamalı yakın komşu ve 2-opt hesabı yapar, Google isteği göndermez ve yol ağı, trafik veya saat aralığını hesaba katmaz. Tamamlanan durakların durumu korunur. Gerçek yol mesafesi ve ETA ayrıca **Rotayı hesapla** ile bir Routes Essentials isteği üzerinden alınır. `ENABLE_GOOGLE_OPTIMIZATION=1` ayarlanırsa ayrı **Google ile optimize et** düğmesi görünür ve kullanıcı her Pro isteğini onaylar. `optimizeWaypointOrder` [Google belgesine](https://developers.google.com/maps/documentation/routes/opt-way) göre Pro sınıfında ücretlendirilebilir. Kota dolunca ücretli istek otomatik tekrarlanmaz, yerel sıralamaya geçilir. Uygulama Routes Matrix çağırmaz. Fiyat ve SKU'lar değişebilir; canlıya çıkarken fiyat sayfasını yeniden kontrol edin. Google'ın [coğrafi kodlama veri saklama politikası](https://developers.google.com/maps/documentation/geocoding/policies) ve Maps/Routes hizmet şartlarına uyun; kalıcı adres ve koordinat saklama iş modeliniz için hukuki/politika incelemesi gerektirir.
 
 ## Kullanım notları
 
@@ -53,5 +54,3 @@ Google'ın [küresel fiyat sayfası](https://developers.google.com/maps/billing-
 Vercel projesinde Storage → Neon Postgres veritabanı oluşturup Production ortamına `DATABASE_URL` değişkenini bağlayın, ardından yeniden deploy edin. Proje bu değişkenle açılınca rotalar ve adres deposu veritabanında saklanır. Ayarlar → **Eşitleme kodunu göster** ile uzun kodu güvenli şekilde alın; diğer cihazda Ayarlar → **Bu kodla bağlan** alanına yapıştırın. Kod hesaba erişim anahtarıdır; başkalarıyla paylaşmayın. Aynı rota iki cihazda aynı anda değiştirilirse sunucu çakışan yazımı reddeder; Ayarlar → **Şimdi eşitle** ile son sunucu sürümünü yükleyin. Veritabanı bağlantısı kesilirse cihazdaki kayıtlar kalır; bağlantı dönünce eşitleyin. Sunucuda yalnızca kodun SHA-256 özeti saklanır. İlk eşitleme mevcut cihaz kayıtlarını da yükler. Veritabanı bağlı değilken uygulama durumunu açıkça bildirir ve cihazlar arası eşitleme yapmaz.
 
 Google Places ve Geocoding verilerinden yalnızca yer kimliği uzun süre saklanabilir. Depoda Google koordinatları 29 gün sonra yeniden doğrulanır; kullanıcı girip onayladığı firma, telefon, teslimat notları kendi kayıtlarıdır. Kayıtlı işletmeler hızlı arama sonucunda önce gösterilir, eşleşme varsa kullanıcı Google aramasını ayrıca seçmedikçe Autocomplete isteği gönderilmez.
-
-Neon entegrasyonunu Production ortamına bağladıktan sonra yeni bir dağıtım oluşturun; önceki dağıtımlar sonradan eklenen ortam değişkenlerini almaz.
