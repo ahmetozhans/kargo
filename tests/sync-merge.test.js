@@ -22,6 +22,18 @@ test('an unsynced local delivery remains delivered during conflict recovery',()=
   assert.equal(hasLocalOnly(cloud,local),false);
 });
 
+test('a stale pending stop cannot undo a delivery saved from another device',()=>{
+  const cloud={routes:[{id:'r',stops:[{id:'s',status:'delivered'}]}],addressBook:[]};
+  const local={routes:[{id:'r',stops:[{id:'s',status:'pending'}]}],addressBook:[]};
+  assert.equal(mergeSnapshots(cloud,local,{preferLocal:true}).routes[0].stops[0].status,'delivered');
+});
+
+test('stale device data cannot reopen a completed cloud route',()=>{
+  const cloud={routes:[{id:'r',finishedAt:'today',stops:[{id:'s',status:'delivered'}]}],addressBook:[]};
+  const local={routes:[{id:'r',stops:[{id:'s',status:'pending'}]}],addressBook:[]};
+  assert.deepEqual(mergeSnapshots(cloud,local,{preferLocal:true}).routes[0],cloud.routes[0]);
+});
+
 test('a blank new cloud does not erase locally entered records',()=>{
   const local={routes:[{id:'r',stops:[{id:'s',status:'pending'}]}],addressBook:[{id:'a',address:'Bursa'}],activeId:'r',returnAddress:null};
   assert.equal(hasLocalOnly(null,local),true);

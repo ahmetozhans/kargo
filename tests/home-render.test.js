@@ -10,6 +10,7 @@ test('signed-in delivery route shows next stop, controls, sorting, and map',asyn
   const events={};
   const route={id:'r',title:'27 Eylül dağıtımı',createdAt:new Date().toISOString(),start:{address:'Bursa merkez',lat:40.195,lng:29.06},end:null,stops:[{id:'s1',company:'Sawinmak',address:'Yücel Cd, Bursa',lat:40.2,lng:29.07,status:'pending',count:1},{id:'s2',company:'Penmak',address:'Kuleler Cd, Bursa',lat:40.21,lng:29.08,status:'pending',count:2}]};
   const finished={id:'finished',title:'Eski rota',createdAt:new Date().toISOString(),finishedAt:new Date().toISOString(),start:{address:'Bursa merkez',lat:40.195,lng:29.06},end:{address:'Eski depo',lat:40.18,lng:29.04},stops:[]};
+  const bookEntry={id:'business',company:'Bursa İşletmesi',address:'Nilüfer, Bursa',lat:40.18,lng:29.03};
   const cloudWrites=[];
   estimateLocally(route);
   globalThis.localStorage={getItem:key=>values.get(key)||null,setItem:(key,value)=>values.set(key,String(value)),removeItem:key=>values.delete(key)};
@@ -20,7 +21,7 @@ test('signed-in delivery route shows next stop, controls, sorting, and map',asyn
     if(url==='/api/sync'&&options.method==='PUT')cloudWrites.push(JSON.parse(options.body).data);
     const result=url==='/api/config'?{mode:'demo',syncEnabled:true}
       :url==='/api/session'?{user:{id:'owner',email:'owner@example.com'}}
-      :{revision:1,data:{routes:[route,finished],addressBook:[],activeId:'r'}};
+      :{revision:1,data:{routes:[route,finished],addressBook:[bookEntry],activeId:'r'}};
     return {ok:true,json:async()=>result};
   };
   const interval=globalThis.setInterval;
@@ -80,7 +81,14 @@ test('signed-in delivery route shows next stop, controls, sorting, and map',asyn
     assert.match(app.innerHTML,/SON DURAK · DÖNÜŞ/);
     assert.match(app.innerHTML,/Varış/);
     await click('finish');
+    assert.equal(route.finishedAt,undefined);
+    assert.match(app.innerHTML,/Önce dönüş durağına varışı işaretle/);
+    await click('arrive-return');
+    assert.ok(route.returnReachedAt);
+    await click('finish');
     assert.ok(route.finishedAt);
+    await click('open-history',{id:'r'});
+    assert.doesNotMatch(app.innerHTML,/data-action="edit-stop"|data-action="deliver-next"|data-action="toggle-tools"/);
     await click('new');
     assert.match(app.innerHTML,/SON DURAK · DÖNÜŞ/);
     await click('save-route');
@@ -92,6 +100,13 @@ test('signed-in delivery route shows next stop, controls, sorting, and map',asyn
     const quick=JSON.parse(values.get('kargo.routes.v1'));
     assert.equal(quick.routes.length,3);
     assert.equal(quick.routes.at(-1).end.address,'Bursa merkez');
+    await click('screen',{screen:'book'});
+    await click('book-remove',{id:'business'});
+    assert.doesNotMatch(app.innerHTML,/Bursa İşletmesi rotaya ekle/);
+    assert.match(app.innerHTML,/data-action="book-undo"/);
+    await click('book-undo');
+    assert.match(app.innerHTML,/Bursa İşletmesi rotaya ekle/);
+    assert.equal(JSON.parse(values.get('kargo.routes.v1')).addressBook.some(x=>x.id==='business'),true);
     await new Promise(resolve=>setTimeout(resolve,700));
     assert.equal(cloudWrites.at(-1).returnAddress.address,'Bursa merkez');
   }finally{globalThis.setInterval=interval;clearTimeout(globalThis.window.toastTimer)}

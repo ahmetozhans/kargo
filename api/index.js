@@ -2,13 +2,14 @@ import { createHash } from 'node:crypto';
 import {database, currentUser, authenticate, setupOwner, endSession, checkOrigin} from './auth.js';
 import {routeTransitionError} from './route-guard.js';
 const BURSA = { latitude: 40.195, longitude: 29.06 };
-const limits = new Map();
 const json = (res, status, data) => res.writeHead(status, {'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'}).end(JSON.stringify(data));
 const coord = p => p && Number.isFinite(Number(p.lat)) && Number.isFinite(Number(p.lng)) && Math.abs(+p.lat)<=90 && Math.abs(+p.lng)<=180;
 const point = p => ({location:{latLng:{latitude:+p.lat,longitude:+p.lng}}});
-function allow(kind, cap){
-  const day = new Date().toISOString().slice(0,10), key = `${kind}:${day}`;
-  const used=limits.get(key)||0; if(used>=cap) return false; limits.set(key,used+1); return true;
+async function allow(sql,kind,cap){
+  const day=new Date().toISOString().slice(0,10);
+  await sql`CREATE TABLE IF NOT EXISTS kargo_api_usage (day date NOT NULL, kind text NOT NULL, used integer NOT NULL DEFAULT 0, PRIMARY KEY(day,kind))`;
+  const rows=await sql`INSERT INTO kargo_api_usage(day,kind,used) VALUES (${day}::date,${kind},1) ON CONFLICT (day,kind) DO UPDATE SET used=kargo_api_usage.used+1 WHERE kargo_api_usage.used<${cap} RETURNING used`;
+  return rows.length>0;
 }
 async function google(url, options={}){
   const response = await fetch(url,{...options,signal:AbortSignal.timeout(12000)});
@@ -88,18 +89,19 @@ export default async function handler(req,res){
       return json(res,200,{revision:rows[0].revision});
     }
     if(!['search','geocode','place','route'].includes(endpoint))return json(res,404,{message:'İşlem bulunamadı.'});
-    if(!await currentUser(req,await database()))return json(res,401,{message:'Giriş yapman gerekiyor.'});
+    const sql=await database();
+    if(!await currentUser(req,sql))return json(res,401,{message:'Giriş yapman gerekiyor.'});
     if(!key) return json(res,503,{code:'DEMO_MODE',message:'Google anahtarı ayarlı değil; demo rotası kullanılabilir.'});
     if(endpoint==='search' && req.method==='GET'){
       const q=(url.searchParams.get('q')||'').trim();if(q.length<3||q.length>180) return json(res,400,{message:'En az 3 karakter girin.'});
-      if(!allow('places',Number(process.env.DAILY_PLACES_LIMIT)||100)) return json(res,429,{code:'QUOTA',message:'Adres arama için uygulama günlük sınırına ulaştı.'});
+      if(!await allow(sql,'places',Number(process.env.DAILY_PLACES_LIMIT)||100)) return json(res,429,{code:'QUOTA',message:'Adres arama için uygulama günlük sınırına ulaştı.'});
       const data=await google('https://places.googleapis.com/v1/places:autocomplete',{method:'POST',headers:{'Content-Type':'application/json','X-Goog-Api-Key':key},body:JSON.stringify({input:q,languageCode:'tr',regionCode:'TR',includedRegionCodes:['tr'],locationBias:{circle:{center:BURSA,radius:45000}}})});
       return json(res,200,{results:(data.suggestions||[]).filter(x=>x.placePrediction).slice(0,5).map(x=>({label:x.placePrediction.text?.text||'',placeId:x.placePrediction.placeId}))});
     }
     if(endpoint==='geocode' && req.method==='POST'){
       const input=await body(req);const address=String(input.address||'').trim();
       if(address.length<7||address.length>240)return json(res,400,{message:'Mahalle, sokak ve kapı numarasıyla daha açık adres girin.'});
-      if(!allow('geocode',Number(process.env.DAILY_GEOCODE_LIMIT)||100))return json(res,429,{code:'QUOTA',message:'Adres doğrulama günlük sınırına ulaştı.'});
+      if(!await allow(sql,'geocode',Number(process.env.DAILY_GEOCODE_LIMIT)||100))return json(res,429,{code:'QUOTA',message:'Adres doğrulama günlük sınırına ulaştı.'});
       const params=new URLSearchParams({address:`${address}, Türkiye`,language:'tr',region:'tr',key});
       const data=await google(`https://maps.googleapis.com/maps/api/geocode/json?${params}`);
       return json(res,200,{results:(data.results||[]).slice(0,5).map(x=>({address:x.formatted_address,lat:x.geometry.location.lat,lng:x.geometry.location.lng,placeId:x.place_id,partial:x.partial_match||false}))});
@@ -107,7 +109,7 @@ export default async function handler(req,res){
     if(endpoint==='place' && req.method==='GET'){
       const placeId=url.searchParams.get('id')||'';
       if(!/^[\w:-]{6,250}$/.test(placeId))return json(res,400,{message:'Geçersiz yer kimliği.'});
-      if(!allow('places',Number(process.env.DAILY_PLACES_LIMIT)||100))return json(res,429,{code:'QUOTA',message:'Adres arama günlük sınırına ulaştı.'});
+      if(!await allow(sql,'places',Number(process.env.DAILY_PLACES_LIMIT)||100))return json(res,429,{code:'QUOTA',message:'Adres arama günlük sınırına ulaştı.'});
       const data=await google(`https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}?languageCode=tr`,{headers:{'X-Goog-Api-Key':key,'X-Goog-FieldMask':'id,formattedAddress,location'}});
       return json(res,200,{address:data.formattedAddress,lat:data.location?.latitude,lng:data.location?.longitude,placeId:data.id});
     }
@@ -117,7 +119,7 @@ export default async function handler(req,res){
       if(!coord(input.start)||!Array.isArray(stops)||stops.length>25||!stops.length&&!input.end||!stops.every(coord)||input.end&&!coord(input.end))return json(res,400,{message:'Başlangıç ve geçerli durak veya dönüş noktası gereklidir.'});
       if(optimize&&process.env.ENABLE_GOOGLE_OPTIMIZATION!=='1')return json(res,403,{code:'OPT_DISABLED',message:'Google Pro optimizasyonu kapalı. Durakları elle sıralayabilirsiniz.'});
       if(optimize&&stops.length<2)return json(res,400,{message:'Optimizasyon için en az iki durak gereklidir.'});
-      if(!allow(optimize?'optimize':'route',Number(process.env[optimize?'DAILY_OPTIMIZE_LIMIT':'DAILY_ROUTES_LIMIT'])||(optimize?5:30)))return json(res,429,{code:'QUOTA',message:'Günlük rota kotası doldu. Durakları elle sıralayabilirsiniz.'});
+      if(!await allow(sql,optimize?'optimize':'route',Number(process.env[optimize?'DAILY_OPTIMIZE_LIMIT':'DAILY_ROUTES_LIMIT'])||(optimize?5:30)))return json(res,429,{code:'QUOTA',message:'Günlük rota kotası doldu. Durakları elle sıralayabilirsiniz.'});
       // An open route still needs one fixed destination for Compute Routes.
       // Pick the farthest stop as its likely finish so every other stop can be reordered.
       const endpointIndex=optimize&&!input.end?stops.reduce((best,stop,i)=>{

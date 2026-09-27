@@ -8,13 +8,28 @@ export function mergeSnapshots(cloud,local,{preferLocal=false}={}){
   for(const route of second.routes||[]){
     if(!routes.has(route.id)){routes.set(route.id,route);continue}
     const remote=routes.get(route.id);
+    // A completed cloud route is an archive. A stale device must not reopen it.
+    if(remote.finishedAt)continue;
     const stops=new Map((remote.stops||[]).map(stop=>[stop.id,stop]));
     for(const stop of route.stops||[]){
       const saved=stops.get(stop.id);
       if(!saved){stops.set(stop.id,stop);continue}
-      if(preferLocal||saved.status==='pending'&&stop.status!=='pending')stops.set(stop.id,{...saved,...stop});
+      if(preferLocal||saved.status==='pending'&&stop.status!=='pending'){
+        const merged={...saved,...stop};
+        // Never turn a confirmed delivery back into a pending stop.
+        if(saved.status!=='pending'&&stop.status==='pending')merged.status=saved.status;
+        if(saved.status==='pending'&&stop.status!=='pending')merged.status=stop.status;
+        if(saved.status!=='pending'&&stop.status!=='pending'&&saved.status!==stop.status)merged.status=saved.status;
+        stops.set(stop.id,merged);
+      }
     }
-    routes.set(route.id,{...(preferLocal?remote:route),...(preferLocal?route:remote),stops:[...stops.values()]});
+    const preferred=preferLocal?route:remote;
+    const order=preferLocal?(route.stops||[]):(remote.stops||[]);
+    const ordered=[...order.map(s=>stops.get(s.id)).filter(Boolean),...[...stops.values()].filter(s=>!order.some(x=>x.id===s.id))];
+    const mergedRoute={...(preferLocal?remote:route),...preferred,stops:ordered};
+    if(route.finishedAt&&ordered.every(s=>s.status!=='pending'))mergedRoute.finishedAt=route.finishedAt;
+    else delete mergedRoute.finishedAt;
+    routes.set(route.id,mergedRoute);
   }
   const book=new Map();
   for(const entry of first.addressBook||[])book.set(key(entry),entry);

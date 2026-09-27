@@ -17,7 +17,7 @@ node --env-file=.env server.js
 
 Hızlı kullanım: ana sayfada **işletme veya fabrika adını** yazın, önerilerdeki doğru konumu seçin. Durak otomatik olarak bugünkü rotaya eklenir. Aramayı tekrarlayarak diğer işletmeleri ekleyin ve **Rotayı aç** düğmesine basın. Alıcı ve paket ayrıntıları sonradan düzenlenebilir. Demo modunda yalnız dört örnek Bursa işletmesi aranabilir; Google anahtarlarıyla canlı işletme araması açılır.
 
-Vercel: GitHub deposunu Vercel'e bağlayın; framework ayarı `Other`, kök dizin `.`. `public/` statik dosyaları ve `api/index.js` sunucu işlevini yayınlayın. Environment Variables alanına `GOOGLE_MAPS_BROWSER_KEY`, `GOOGLE_MAPS_SERVER_KEY` ve diğer ayarları ekleyip yeniden deploy edin. HTTPS gereklidir; yerel `localhost` istisnadır. Vercel'de serverless işlevler arasında günlük sayaç ortak değildir: **kesin maliyet sınırı için Google Cloud API kotalarını ayrıca ayarlayın**.
+Vercel: GitHub deposunu Vercel'e bağlayın; framework ayarı `Other`, kök dizin `.`. `public/` statik dosyaları ve `api/index.js` sunucu işlevini yayınlayın. Environment Variables alanına `GOOGLE_MAPS_BROWSER_KEY`, `GOOGLE_MAPS_SERVER_KEY` ve diğer ayarları ekleyip yeniden deploy edin. HTTPS gereklidir; yerel `localhost` istisnadır. Sunucu isteklerinin günlük sayaçları bağlı PostgreSQL veritabanında ortak tutulur. **Kesin maliyet sınırı için Google Cloud API kotalarını ayrıca ayarlayın**; tarayıcıdaki Maps JavaScript yüklemeleri bu sunucu sayaçlarına dahil değildir.
 
 ## Google Cloud kurulumu
 
@@ -25,7 +25,7 @@ Vercel: GitHub deposunu Vercel'e bağlayın; framework ayarı `Other`, kök dizi
 2. İki ayrı anahtar açın. Tarayıcı anahtarı: `GOOGLE_MAPS_BROWSER_KEY`; uygulama kısıtı **HTTP referrers** (`https://alanadiniz/*`, geliştirme için `http://localhost:3000/*`), API kısıtı yalnızca **Maps JavaScript API**. Tarayıcı anahtarının görünür olması normaldir; referrer ve API kısıtları önemlidir.
 3. Sunucu anahtarı: `GOOGLE_MAPS_SERVER_KEY`; yalnızca sunucu ortam değişkenine koyun. API kısıtı **Places API (New), Geocoding API, Routes API**. Sabit çıkış IP'niz varsa IP kısıtı da uygulayın. Vercel'in değişken çıkış IP'lerinde yalnız API kısıtı tek başına tam koruma sağlamaz: sunucu endpointlerine ek oturum ve oran sınırlaması koymadan genel kullanıma açmayın. Anahtarı GitHub'a veya istemci dosyasına koymayın.
 4. Cloud Console → **APIs & Services → Enabled APIs & services → ilgili API → Quotas & System Limits**: Maps JavaScript, Places, Geocoding, Routes API için günlük sınırları trafik hedefinize göre düşürün. Özellikle Routes Pro optimizasyonunun sınırını çok düşük tutun; `ENABLE_GOOGLE_OPTIMIZATION=0` varsayılandır. Cloud Console → **Billing → Budgets & alerts** altında düşük bir bütçe ve örneğin %50, %90, %100 e-posta uyarıları ekleyin. **Bütçe uyarısı harcamayı otomatik durdurmaz.** API kotası ve düzenli kullanım izlemesi gerekir.
-5. `DAILY_*_LIMIT` uygulama başına ek korumadır, dağıtık sunucularda ortak sayaç değildir. Tek kullanıcıya yönelik ilk sürümdür; kullanıcı hesabı, senkronizasyon veya çok kullanıcı erişimi için kalıcı sunucu veri tabanı ve merkezi oran sınırlaması gerekir.
+5. `DAILY_*_LIMIT` sunucudan yapılan Places, Geocoding ve Routes isteklerini veritabanındaki gün ve servis bazlı atomik sayaçla sınırlar. Başarısız istekler de sınırdan düşülür. Bu uygulama sayacı, Google'ın kendi ürün kotalarının yerini almaz; Maps JavaScript yüklemeleri doğrudan tarayıcıdan gerçekleşir.
 
 ## Kullanılan servisler ve 27 Eylül 2026 itibarıyla fiyatlar
 
