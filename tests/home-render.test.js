@@ -14,7 +14,7 @@ test('signed-in delivery route shows next stop, controls, sorting, and map',asyn
   const cloudWrites=[];
   estimateLocally(route);
   globalThis.localStorage={getItem:key=>values.get(key)||null,setItem:(key,value)=>values.set(key,String(value)),removeItem:key=>values.delete(key)};
-  const fields={'#route-title':{value:'Yeni Bursa rotası'},'#start-address':{value:'Bursa merkez'},'#end-address':{value:''}};
+  const fields={'#route-title':{value:'Yeni Bursa rotası'},'#end-address':{value:''}};
   globalThis.document={querySelector:selector=>selector==='#app'?app:selector==='#toast'?toast:fields[selector]||null,addEventListener:(type,handler)=>{(events[type]??=[]).push(handler)}};
   globalThis.window={scrollTo:()=>{scrolls++},addEventListener:()=>{}};
   globalThis.fetch=async(url,options={})=>{
@@ -70,6 +70,7 @@ test('signed-in delivery route shows next stop, controls, sorting, and map',asyn
     const withReturn=JSON.parse(values.get('kargo.routes.v1'));
     assert.equal(withReturn.returnAddress.address,'Bursa merkez');
     assert.ok(withReturn.routes.filter(x=>!x.finishedAt).every(x=>x.end?.address==='Bursa merkez'));
+    assert.ok(withReturn.routes.filter(x=>!x.finishedAt).every(x=>x.start?.address===x.end?.address));
     assert.equal(withReturn.routes.find(x=>x.id==='finished').end.address,'Eski depo');
     assert.equal(withReturn.routes.find(x=>x.id==='r').stops[0].status,'pending');
     await click('screen',{screen:'route'});
@@ -92,11 +93,12 @@ test('signed-in delivery route shows next stop, controls, sorting, and map',asyn
     await click('open-history',{id:'r'});
     assert.doesNotMatch(app.innerHTML,/data-action="edit-stop"|data-action="deliver-next"|data-action="toggle-tools"/);
     await click('new');
-    assert.match(app.innerHTML,/SON DURAK · DÖNÜŞ/);
+    assert.match(app.innerHTML,/BAŞLANGIÇ VE SON DURAK/);
     await click('save-route');
     const third=JSON.parse(values.get('kargo.routes.v1'));
     assert.equal(third.routes.length,3);
     assert.equal(third.routes.at(-1).end.address,'Bursa merkez');
+    assert.deepEqual(third.routes.at(-1).start,third.routes.at(-1).end);
     await click('screen',{screen:'home'});
     await click('quick-address');
     const quick=JSON.parse(values.get('kargo.routes.v1'));
