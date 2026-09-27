@@ -56,6 +56,13 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 .journey-fraction{display:flex;align-items:baseline;gap:5px}.journey-fraction strong{font-size:38px;line-height:1;font-weight:850;letter-spacing:-.06em}.journey-fraction span{font-size:13px;color:#b8c4e4}
 .journey-progress{height:6px;margin:16px 0 16px;border-radius:12px;background:#ffffff26;overflow:hidden}.journey-progress i{display:block;height:100%;border-radius:12px;background:#89a1ff}
 .journey-foot{display:flex;align-items:center;justify-content:space-between;gap:10px}.journey-foot>span{font-size:12px;color:#becaeb}
+.journey-new{position:relative;width:100%;min-height:44px;margin-top:14px;border:1px solid #ffffff53;border-radius:12px;background:#ffffff18;color:#fff;font-size:13px;font-weight:800}
+.open-routes{display:grid;gap:8px;margin:16px 0}
+.open-routes>.eyebrow{margin-bottom:2px}
+.open-routes button{min-height:62px;width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 14px;border:1px solid var(--line);border-radius:13px;background:#fff;text-align:left;color:var(--ink)}
+.open-routes button span{min-width:0}
+.open-routes button b,.open-routes button small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.open-routes button b{font-size:13px}.open-routes button small{font-size:11px;color:var(--sub);margin-top:5px}.open-routes button strong{color:var(--blue)}
 .primary,.secondary,.ghost,.delivered-btn{min-height:45px;border-radius:12px;padding:10px 14px;font-size:13px;font-weight:800}
 .primary{background:var(--blue);color:white;border:1px solid var(--blue)}.primary:hover{background:var(--blue-dark)}
 .secondary{background:white;color:#425675;border:1px solid #e2e7f1}.secondary:hover{background:#f2f5ff}
@@ -120,6 +127,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 .screen-route .route-summary strong{font-size:18px}
 .screen-route .route-summary i{margin:0 7px}
 .screen-route .progress{height:5px;margin-top:13px}
+.screen-route .new-route-btn{width:100%;min-height:45px;margin:0 0 13px;border:1px solid #bccbff;border-radius:12px;background:#fff;color:#294acb;font-size:13px;font-weight:800}
 .screen-route .next-card{position:relative;display:block;overflow:hidden;background:#1c2c58;border:0;border-radius:20px;color:#fff;padding:19px 18px 17px;margin-bottom:12px;box-shadow:0 10px 24px #1c2c5824}
 .screen-route .next-card::after{content:'';position:absolute;right:-55px;top:-68px;width:150px;height:150px;border-radius:50%;border:23px solid #ffffff0d;pointer-events:none}
 .screen-route .next-marker{display:flex;justify-content:space-between;gap:10px;align-items:center;color:#aabcfa;font-size:10px;letter-spacing:.12em;font-weight:850}

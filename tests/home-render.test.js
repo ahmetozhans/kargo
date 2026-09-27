@@ -10,7 +10,8 @@ test('signed-in delivery route shows next stop, controls, sorting, and map',asyn
   const route={id:'r',title:'27 Eylül dağıtımı',createdAt:new Date().toISOString(),start:{address:'Bursa merkez',lat:40.195,lng:29.06},end:null,stops:[{id:'s1',company:'Sawinmak',address:'Yücel Cd, Bursa',lat:40.2,lng:29.07,status:'pending',count:1},{id:'s2',company:'Penmak',address:'Kuleler Cd, Bursa',lat:40.21,lng:29.08,status:'pending',count:2}]};
   estimateLocally(route);
   globalThis.localStorage={getItem:key=>values.get(key)||null,setItem:(key,value)=>values.set(key,String(value)),removeItem:key=>values.delete(key)};
-  globalThis.document={querySelector:selector=>selector==='#app'?app:null,addEventListener:(type,handler)=>{(events[type]??=[]).push(handler)}};
+  const fields={'#route-title':{value:'Yeni Bursa rotası'},'#start-address':{value:'Bursa merkez'},'#end-address':{value:''}};
+  globalThis.document={querySelector:selector=>selector==='#app'?app:fields[selector]||null,addEventListener:(type,handler)=>{(events[type]??=[]).push(handler)}};
   globalThis.window={scrollTo:()=>{scrolls++},addEventListener:()=>{}};
   globalThis.fetch=async url=>({ok:true,json:async()=>url==='/api/config'?{mode:'demo',syncEnabled:true}:url==='/api/session'?{user:{id:'owner',email:'owner@example.com'}}:{revision:1,data:{routes:[route],addressBook:[],activeId:'r'}}});
   const interval=globalThis.setInterval;
@@ -33,5 +34,19 @@ test('signed-in delivery route shows next stop, controls, sorting, and map',asyn
     assert.match(app.innerHTML,/data-action="move"/);
     await click('set-view',{view:'map'});
     assert.match(app.innerHTML,/Şematik görünüm/);
+    assert.match(app.innerHTML,/data-action="new">＋ Yeni rota oluştur/);
+    await click('new');
+    assert.match(app.innerHTML,/Rota adı/);
+    await click('save-route');
+    const saved=JSON.parse(values.get('kargo.routes.v1'));
+    assert.equal(saved.routes.length,2);
+    assert.equal(saved.routes.find(x=>x.id==='r').stops.length,2);
+    assert.equal(saved.routes.find(x=>x.id==='r').stops[0].status,'pending');
+    assert.notEqual(saved.activeId,'r');
+    await click('screen',{screen:'home'});
+    assert.match(app.innerHTML,/DİĞER AÇIK ROTALAR/);
+    await click('switch-route',{id:'r'});
+    assert.equal(JSON.parse(values.get('kargo.routes.v1')).activeId,'r');
+    assert.match(app.innerHTML,/Sawinmak/);
   }finally{globalThis.setInterval=interval}
 });
