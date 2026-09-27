@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 const BURSA = { latitude: 40.195, longitude: 29.06 };
 const limits = new Map();
 const json = (res, status, data) => res.writeHead(status, {'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'}).end(JSON.stringify(data));
@@ -19,7 +20,7 @@ async function google(url, options={}){
 }
 async function body(req){
   if(req.body && typeof req.body==='object') return req.body;
-  let raw=''; for await(const chunk of req){raw+=chunk;if(raw.length>40000) throw Object.assign(new Error('İstek çok büyük'),{status:413});}
+  let raw=''; for await(const chunk of req){raw+=chunk;if(raw.length>600000) throw Object.assign(new Error('İstek çok büyük'),{status:413});}
   try{return JSON.parse(raw||'{}');}catch{throw Object.assign(new Error('Geçersiz JSON'),{status:400});}
 }
 export default async function handler(req,res){
@@ -27,7 +28,27 @@ export default async function handler(req,res){
   const endpoint=(url.searchParams.get('endpoint')||url.pathname.replace(/^\/api\//,'')).replace(/\/$/,'');
   const key=process.env.GOOGLE_MAPS_SERVER_KEY;
   try{
-    if(endpoint==='config' && req.method==='GET') return json(res,200,{mode:key?'live':'demo',browserKey:key?(process.env.GOOGLE_MAPS_BROWSER_KEY||''):'' ,optimizationEnabled:process.env.ENABLE_GOOGLE_OPTIMIZATION==='1'});
+    if(endpoint==='config' && req.method==='GET') return json(res,200,{mode:key?'live':'demo',browserKey:key?(process.env.GOOGLE_MAPS_BROWSER_KEY||''):'' ,optimizationEnabled:process.env.ENABLE_GOOGLE_OPTIMIZATION==='1',syncEnabled:Boolean(process.env.DATABASE_URL)});
+    if(endpoint==='sync' && ['GET','PUT'].includes(req.method)){
+      if(!process.env.DATABASE_URL)return json(res,503,{code:'SYNC_DISABLED',message:'Kalıcı veritabanı henüz bağlı değil.'});
+      const token=String(req.headers.authorization||'').replace(/^Bearer /i,'');
+      if(!/^[A-Za-z0-9_-]{40,100}$/.test(token))return json(res,401,{message:'Geçerli eşitleme kodu gerekli.'});
+      const account=createHash('sha256').update(token).digest('hex');
+      const {neon}=await import('@neondatabase/serverless');
+      const sql=neon(process.env.DATABASE_URL);
+      await sql`CREATE TABLE IF NOT EXISTS kargo_accounts (account_id text PRIMARY KEY, payload jsonb NOT NULL DEFAULT '{}'::jsonb, revision integer NOT NULL DEFAULT 0, updated_at timestamptz NOT NULL DEFAULT now())`;
+      if(req.method==='GET'){
+        const rows=await sql`SELECT payload, revision FROM kargo_accounts WHERE account_id=${account}`;
+        return json(res,200,{data:rows[0]?.payload||null,revision:rows[0]?.revision||0});
+      }
+      const input=await body(req),data=input.data;
+      if(!data||!Array.isArray(data.routes)||!Array.isArray(data.addressBook)||data.routes.length>300||data.addressBook.length>3000||JSON.stringify(data).length>500000)return json(res,400,{message:'Kayıt boyutu veya biçimi geçersiz.'});
+      const revision=Number(input.revision);
+      if(!Number.isInteger(revision)||revision<0)return json(res,400,{message:'Geçersiz sürüm.'});
+      const rows=await sql`INSERT INTO kargo_accounts (account_id,payload,revision) VALUES (${account},${JSON.stringify(data)}::jsonb,1) ON CONFLICT (account_id) DO UPDATE SET payload=EXCLUDED.payload,revision=kargo_accounts.revision+1,updated_at=now() WHERE kargo_accounts.revision=${revision} RETURNING revision`;
+      if(!rows.length)return json(res,409,{code:'CONFLICT',message:'Başka cihazda yeni kayıt var. Önce eşitle.'});
+      return json(res,200,{revision:rows[0].revision});
+    }
     if(!key) return json(res,503,{code:'DEMO_MODE',message:'Google anahtarı ayarlı değil; demo rotası kullanılabilir.'});
     if(endpoint==='search' && req.method==='GET'){
       const q=(url.searchParams.get('q')||'').trim();if(q.length<3||q.length>180) return json(res,400,{message:'En az 3 karakter girin.'});
