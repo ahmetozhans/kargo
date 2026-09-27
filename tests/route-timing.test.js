@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {advanceTiming, demoLegs, setTiming, timingSummary} from '../public/route-timing.js';
+import {advanceTiming, demoLegs, estimateLocally, setTiming, timingSummary} from '../public/route-timing.js';
 
 const at = Date.parse('2026-09-27T09:00:00Z');
 const makeRoute = () => ({start:{lat:40.2,lng:29},end:null,stops:[
@@ -61,4 +61,22 @@ test('a route with an end point includes the final return leg', () => {
   route.stops[0].status='delivered';
   advanceTiming(route,'a','a',at+600_000);
   assert.equal(route.durationSeconds,2400);
+});
+
+test('new or reordered stops show a local time immediately while old road geometry is removed',()=>{
+  const route=makeRoute();
+  setTiming(route,legs,'google',at);
+  route.encodedPolyline='old-google-road';
+  [route.stops[0],route.stops[2]]=[route.stops[2],route.stops[0]];
+  assert.equal(estimateLocally(route,at),true);
+  assert.equal(route.encodedPolyline,null);
+  assert.equal(timingSummary(route,at).arrivals.size,3);
+  assert.equal(route.timingSource,'local');
+});
+
+test('a stop without a location never produces a misleading arrival',()=>{
+  const route=makeRoute();
+  route.stops[0].lat=null;
+  assert.equal(estimateLocally(route,at),false);
+  assert.equal(timingSummary(route),null);
 });

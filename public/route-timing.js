@@ -33,6 +33,16 @@ export function demoLegs(route) {
   return legs;
 }
 
+export function estimateLocally(route, at = Date.now()) {
+  clearTiming(route);
+  const stops = remaining(route);
+  const start = route.stops.filter(stop => stop.status !== 'pending').at(-1) || route.start;
+  const valid = point => point && point.lat != null && point.lng != null && Number.isFinite(Number(point.lat)) && Number.isFinite(Number(point.lng));
+  if (!stops.length || !valid(start) || stops.some(stop => !valid(stop)) || route.end && !valid(route.end)) return false;
+  setTiming(route, demoLegs(route), 'local', at);
+  return true;
+}
+
 export function setTiming(route, legs, source, at = Date.now()) {
   const stops = remaining(route);
   if (!Array.isArray(legs) || legs.length !== stops.length + (route.end ? 1 : 0) ||

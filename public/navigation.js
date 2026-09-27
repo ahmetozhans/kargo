@@ -17,6 +17,10 @@ export function directDistance(position, destination) {
   return Number.isFinite(distance) ? distance : null;
 }
 
+export function approximateDriveSeconds(meters) {
+  return meters == null || !Number.isFinite(meters) ? null : Math.max(0, Math.ceil(meters * 1.35 / (30000 / 3600)));
+}
+
 // Snap the current position to the closest segment of the planned road shape.
 export function routeProgress(position, points, roadMeters, durationSeconds) {
   if (!position || !Array.isArray(points) || points.length < 2) return null;
