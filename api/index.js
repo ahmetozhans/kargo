@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import {database, currentUser, authenticate, setupOwner, endSession, checkOrigin} from './auth.js';
+import {routeTransitionError} from './route-guard.js';
 const BURSA = { latitude: 40.195, longitude: 29.06 };
 const limits = new Map();
 const json = (res, status, data) => res.writeHead(status, {'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'}).end(JSON.stringify(data));
@@ -75,6 +76,11 @@ export default async function handler(req,res){
       if(!data||!Array.isArray(data.routes)||!Array.isArray(data.addressBook)||data.routes.length>300||data.addressBook.length>3000||JSON.stringify(data).length>500000)return json(res,400,{message:'Kayıt boyutu veya biçimi geçersiz.'});
       const revision=Number(input.revision);
       if(!Number.isInteger(revision)||revision<0)return json(res,400,{message:'Geçersiz sürüm.'});
+      const previous=await sql`SELECT payload,revision FROM kargo_accounts WHERE account_id=${account}`;
+      if(previous.length&&previous[0].revision===revision||!previous.length&&revision===0){
+        const violation=routeTransitionError(previous[0]?.payload,data);
+        if(violation)return json(res,409,violation);
+      }
       await sql`CREATE TABLE IF NOT EXISTS kargo_account_history (account_id text NOT NULL, revision integer NOT NULL, payload jsonb NOT NULL, saved_at timestamptz NOT NULL DEFAULT now(), PRIMARY KEY(account_id,revision))`;
       await sql`INSERT INTO kargo_account_history(account_id,revision,payload) SELECT account_id,revision,payload FROM kargo_accounts WHERE account_id=${account} AND revision=${revision} ON CONFLICT DO NOTHING`;
       const rows=await sql`INSERT INTO kargo_accounts (account_id,payload,revision) VALUES (${account},${JSON.stringify(data)}::jsonb,1) ON CONFLICT (account_id) DO UPDATE SET payload=EXCLUDED.payload,revision=kargo_accounts.revision+1,updated_at=now() WHERE kargo_accounts.revision=${revision} RETURNING revision`;
