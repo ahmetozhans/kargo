@@ -10,7 +10,7 @@ test('signed-in delivery route shows next stop, controls, sorting, and map',asyn
   const events={};
   const route={id:'r',title:'27 Eylül dağıtımı',createdAt:new Date().toISOString(),start:{address:'Bursa merkez',lat:40.195,lng:29.06},end:null,stops:[{id:'s1',company:'Sawinmak',address:'Yücel Cd, Bursa',lat:40.2,lng:29.07,status:'pending',count:1},{id:'s2',company:'Penmak',address:'Kuleler Cd, Bursa',lat:40.21,lng:29.08,status:'pending',count:2}]};
   const finished={id:'finished',title:'Eski rota',createdAt:new Date().toISOString(),finishedAt:new Date().toISOString(),start:{address:'Bursa merkez',lat:40.195,lng:29.06},end:{address:'Eski depo',lat:40.18,lng:29.04},stops:[]};
-  const bookEntry={id:'business',company:'Bursa İşletmesi',address:'Nilüfer, Bursa',lat:40.18,lng:29.03};
+  const bookEntry={id:'business',company:'Bursa İşletmesi',address:'Nilüfer, Bursa',lat:40.18,lng:29.03,parcel:'ESKİ',count:4,notes:'Eski teslimat notu'};
   const cloudWrites=[];
   estimateLocally(route);
   globalThis.localStorage={getItem:key=>values.get(key)||null,setItem:(key,value)=>values.set(key,String(value)),removeItem:key=>values.delete(key)};
@@ -39,9 +39,11 @@ test('signed-in delivery route shows next stop, controls, sorting, and map',asyn
     assert.doesNotMatch(app.innerHTML,/data-action="navigate(?:-next)?"|CANLI ROTA TAKİBİ/);
     assert.match(app.innerHTML,/İşlemler ⋯/);
     assert.doesNotMatch(app.innerHTML,/Rotayı optimize et/);
+    assert.doesNotMatch(app.innerHTML,/id="quick-company"/);
     assert.doesNotMatch(app.innerHTML,/class="detail"/);
     await click('toggle-tools');
     assert.match(app.innerHTML,/Rotayı optimize et/);
+    assert.match(app.innerHTML,/id="quick-company"/);
     await click('select',{id:'s2'});
     assert.match(app.innerHTML,/SEÇİLİ DURAK/);
     await click('close-detail');
@@ -101,12 +103,22 @@ test('signed-in delivery route shows next stop, controls, sorting, and map',asyn
     assert.equal(quick.routes.length,3);
     assert.equal(quick.routes.at(-1).end.address,'Bursa merkez');
     await click('screen',{screen:'book'});
+    await click('book-favorite',{id:'business'});
+    assert.match(app.innerHTML,/★ Favoriler/);
+    assert.equal(JSON.parse(values.get('kargo.routes.v1')).addressBook[0].favorite,true);
     await click('book-remove',{id:'business'});
     assert.doesNotMatch(app.innerHTML,/Bursa İşletmesi rotaya ekle/);
     assert.match(app.innerHTML,/data-action="book-undo"/);
+    assert.ok(JSON.parse(values.get('kargo.routes.v1')).deletedAddressIds.includes('business'));
     await click('book-undo');
     assert.match(app.innerHTML,/Bursa İşletmesi rotaya ekle/);
-    assert.equal(JSON.parse(values.get('kargo.routes.v1')).addressBook.some(x=>x.id==='business'),true);
+    const restored=JSON.parse(values.get('kargo.routes.v1')).addressBook.find(x=>x.company==='Bursa İşletmesi');
+    assert.ok(restored&&restored.id!=='business');
+    await click('book-add',{id:restored.id});
+    const lastStop=JSON.parse(values.get('kargo.routes.v1')).routes.at(-1).stops.at(-1);
+    assert.equal(lastStop.parcel,'');
+    assert.equal(lastStop.count,1);
+    assert.equal(lastStop.notes,'');
     await new Promise(resolve=>setTimeout(resolve,700));
     assert.equal(cloudWrites.at(-1).returnAddress.address,'Bursa merkez');
   }finally{globalThis.setInterval=interval;clearTimeout(globalThis.window.toastTimer)}

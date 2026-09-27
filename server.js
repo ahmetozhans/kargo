@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import handler from './api/index.js';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), 'public');
-const mime = {'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8','.svg':'image/svg+xml'};
+const mime = {'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.webmanifest':'application/manifest+json'};
 http.createServer(async (req,res)=>{
   if (req.url.startsWith('/api/')) return handler(req,res);
   const pathname = decodeURIComponent(new URL(req.url,'http://localhost').pathname);

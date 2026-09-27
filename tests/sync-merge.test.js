@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {hasLocalOnly,mergeSnapshots} from '../public/sync-merge.js';
+import {hasLocalOnly,mergeSnapshots,reconcileSnapshots} from '../public/sync-merge.js';
 
 test('restores missing addresses and stops while preserving other cloud records',()=>{
   const cloud={routes:[{id:'r',title:'Güncel',stops:[{id:'s1',status:'delivered'}]}],addressBook:[{id:'a1',address:'A'}],activeId:'r'};
@@ -47,4 +47,36 @@ test('shared return address survives recovery and an intentional removal stays r
   assert.equal(mergeSnapshots(cloud,local).returnAddress,location);
   assert.equal(mergeSnapshots(cloud,local,{preferLocal:true}).returnAddress,null);
   assert.equal(hasLocalOnly({...cloud,returnAddress:null},{...local,returnAddress:location}),true);
+});
+
+test('a deleted business cannot reappear from an older device and undo gets a new identity',()=>{
+  const old={id:'old',company:'Dobruca',address:'Dobruca, Bursa'};
+  const cloud={routes:[],addressBook:[],deletedAddressIds:['old']};
+  const stale={routes:[],addressBook:[old]};
+  assert.deepEqual(mergeSnapshots(cloud,stale,{preferLocal:true}).addressBook,[]);
+  assert.deepEqual(reconcileSnapshots(cloud,stale,stale).data.addressBook,[]);
+  const restored={...old,id:'new'};
+  assert.deepEqual(mergeSnapshots(cloud,{...stale,addressBook:[restored]}).addressBook,[restored]);
+});
+
+test('two devices changing different stops retain both deliveries and edits',()=>{
+  const base={routes:[{id:'r',title:'Bursa',stops:[{id:'a',status:'pending',notes:''},{id:'b',status:'pending',notes:''}]}],addressBook:[{id:'shop',company:'Eski',address:'Bursa'}],activeId:'r'};
+  const cloud={...base,routes:[{...base.routes[0],stops:[{...base.routes[0].stops[0],status:'delivered'},base.routes[0].stops[1]]}]};
+  const local={...base,routes:[{...base.routes[0],stops:[base.routes[0].stops[0],{...base.routes[0].stops[1],status:'delivered',notes:'Kapıda'}]}],addressBook:[{...base.addressBook[0],company:'Yeni'}]};
+  const result=reconcileSnapshots(cloud,local,base);
+  assert.deepEqual(result.data.routes[0].stops.map(s=>s.status),['delivered','delivered']);
+  assert.equal(result.data.routes[0].stops[1].notes,'Kapıda');
+  assert.equal(result.data.addressBook[0].company,'Yeni');
+  assert.deepEqual(result.conflicts,[]);
+});
+
+test('same-field conflicts keep the cloud value and report the local copy',()=>{
+  const base={routes:[{id:'r',title:'Bursa',stops:[{id:'a',status:'pending'}]}],addressBook:[]};
+  const cloud={...base,routes:[{...base.routes[0],title:'Bulut adı',stops:[{id:'a',status:'delivered'}]}]};
+  const local={...base,routes:[{...base.routes[0],title:'Telefon adı',stops:[{id:'a',status:'failed'}]}]};
+  const result=reconcileSnapshots(cloud,local,base);
+  assert.equal(result.data.routes[0].title,'Bulut adı');
+  assert.equal(result.data.routes[0].stops[0].status,'delivered');
+  assert.ok(result.conflicts.some(x=>x.includes('title')));
+  assert.ok(result.conflicts.some(x=>x.includes('status')));
 });

@@ -74,7 +74,7 @@ export default async function handler(req,res){
         return json(res,200,{data:rows[0]?.payload||null,revision:rows[0]?.revision||0});
       }
       const input=await body(req),data=input.data;
-      if(!data||!Array.isArray(data.routes)||!Array.isArray(data.addressBook)||data.routes.length>300||data.addressBook.length>3000||JSON.stringify(data).length>500000)return json(res,400,{message:'Kayıt boyutu veya biçimi geçersiz.'});
+      if(!data||!Array.isArray(data.routes)||!Array.isArray(data.addressBook)||data.routes.length>300||data.addressBook.length>3000||data.deletedAddressIds&&(!Array.isArray(data.deletedAddressIds)||data.deletedAddressIds.length>3000||data.deletedAddressIds.some(id=>typeof id!=='string'||id.length>200))||JSON.stringify(data).length>500000)return json(res,400,{message:'Kayıt boyutu veya biçimi geçersiz.'});
       const revision=Number(input.revision);
       if(!Number.isInteger(revision)||revision<0)return json(res,400,{message:'Geçersiz sürüm.'});
       const previous=await sql`SELECT payload,revision FROM kargo_accounts WHERE account_id=${account}`;
