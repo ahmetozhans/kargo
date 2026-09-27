@@ -24,7 +24,7 @@ async function body(req){
 }
 export default async function handler(req,res){
   const url=new URL(req.url,'http://localhost');
-  const endpoint=url.pathname.replace(/^\/api\//,'').replace(/\/$/,'');
+  const endpoint=(url.searchParams.get('endpoint')||url.pathname.replace(/^\/api\//,'')).replace(/\/$/,'');
   const key=process.env.GOOGLE_MAPS_SERVER_KEY;
   try{
     if(endpoint==='config' && req.method==='GET') return json(res,200,{mode:key?'live':'demo',browserKey:key?(process.env.GOOGLE_MAPS_BROWSER_KEY||''):'' ,optimizationEnabled:process.env.ENABLE_GOOGLE_OPTIMIZATION==='1'});
